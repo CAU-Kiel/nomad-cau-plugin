@@ -1,0 +1,27 @@
+{
+  "template": "https://github.com/FAIRmat-NFDI/cookiecutter-nomad-plugin",
+  "commit": "d306850507a46af96b5ab71129582655ce534c86",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "full_name": "Stepanka Lankova",
+      "email": "stepanka.lankova@gmail.com",
+      "github_username": "CAU-Kiel",
+      "plugin_name": "nomad-cau-plugin",
+      "module_name": "nomad_cau_plugin",
+      "short_description": "Nomad plugin for CAU Kiel",
+      "version": "0.1.0",
+      "license": "BSD-3",
+      "include_schema_package": true,
+      "include_normalizer": true,
+      "include_parser": true,
+      "include_app": false,
+      "include_example_uploads": true,
+      "_copy_without_render": [
+        "*.html"
+      ],
+      "_template": "https://github.com/FAIRmat-NFDI/cookiecutter-nomad-plugin"
+    }
+  },
+  "directory": null
+}
