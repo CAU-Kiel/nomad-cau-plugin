@@ -113,8 +113,14 @@ where = ["src"]
 parser_entry_point = "nomad_cau_plugin.parsers:parser_entry_point"
 schema_package_entry_point = "nomad_cau_plugin.schema_packages:schema_package_entry_point"
 normalizer_entry_point = "nomad_cau_plugin.normalizers:normalizer_entry_point"
+#measurement_schema = "nomad_cau_plugin.measurements:schema"
+MRO005_schema = "nomad_cau_plugin.measurements:MRO005_schema"
+MRO004_schema = "nomad_cau_plugin.measurements:MRO004_schema"
 
 example_upload_entry_point = "nomad_cau_plugin.example_uploads:example_upload_entry_point"
+
+[tool.setuptools_scm]
 [tool.cruft]
 # Avoid updating workflow files, this leads to permissions issues
 skip = [".github/*"]
+
