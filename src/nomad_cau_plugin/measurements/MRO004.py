@@ -24,6 +24,7 @@ from typing import (
 import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
+import pdfplumber
 from nomad.datamodel.data import (
     ArchiveSection,
     EntryData,
@@ -50,6 +51,9 @@ if TYPE_CHECKING:
 
 m_package = Package(name='MRO005 archive schema')
 
+# Import the recipe extraction function from pdf_extract.py
+from nomad_cau_plugin.parsers.pdf_extract import extract_recipe_from_pdf
+
 class Recipe(ProcessStep, ArchiveSection):
     '''
         Class for recipe inside an excel file MRO005.
@@ -63,7 +67,6 @@ class Recipe(ProcessStep, ArchiveSection):
                     'duration',
                     'start_time',
                     'end_time',
-                    'temperature',
                 ]
             }
         },
@@ -90,12 +93,6 @@ class Recipe(ProcessStep, ArchiveSection):
         description='absolute end time of an action',
         a_eln={'component': 'TimeEditQuantity'},
     )
-    temperature = Quantity(
-        type=np.float64,
-        description='relative temperature measurement during an action',
-        a_eln={'component': 'NumberEditQuantity', 'defaultDisplayUnit': 'celsius'},
-        unit='celsius',
-    )
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         """
@@ -119,6 +116,12 @@ class MRO004(PlotSection, EntryData, ArchiveSection):
     )
     data_file = Quantity(
         type=str,
+        a_browser={"adaptor": "RawFileAdaptor"},
+        a_eln={"component": "FileEditQuantity"},
+    )
+    recipe_file = Quantity(
+        type=str,
+        description='PDF file containing recipe information',
         a_browser={"adaptor": "RawFileAdaptor"},
         a_eln={"component": "FileEditQuantity"},
     )
@@ -155,7 +158,7 @@ class MRO004(PlotSection, EntryData, ArchiveSection):
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         '''
-        The normalizer for the `MRO005` class.
+        The normalizer for the `MRO004` class.
 
         Args:
             archive (EntryArchive): The archive containing the section that is being
@@ -183,7 +186,7 @@ class MRO004(PlotSection, EntryData, ArchiveSection):
                 go.Scatter(x=self.process_time,
                             y=self.CalciumPhosphate_CeriumNitrate ,
                             name = 'CalciumPhosphate_CeriumNitrate',
-                            yaxis='y1')
+                            yaxis='y')
             )
             fig.add_trace(
                 go.Scatter(x=self.process_time, y=self.Conductivity,
@@ -193,13 +196,11 @@ class MRO004(PlotSection, EntryData, ArchiveSection):
             fig.add_trace(
                 go.Scatter(x=self.process_time, y=self.pH,
                         name='pH', yaxis='y3'),
-                        secondary_y=True
             )
             #fig.add_trace(go.Scatter(x=self.process_time, y=self.Stirring_Speed, name='Stirring_Speed', yaxis='y4'),)
             fig.add_trace(
                 go.Scatter(x=self.process_time, y=self.Temperature,
                         name='Temperature', yaxis='y4'),
-                        secondary_y=True
             )
             fig.update_layout(
                 title='Process Parameters Over Time',
@@ -216,7 +217,7 @@ class MRO004(PlotSection, EntryData, ArchiveSection):
                 #yaxis4=dict(title='Stirring Speed (rpm)', titlefont=dict(color='orange'),
                             #tickfont=dict(color='orange'),
                             #overlaying='y', side='right', position=0.95),
-                yaxis5=dict(title='Temperature (°C)', titlefont=dict(color='purple'),
+                yaxis4=dict(title='Temperature (°C)', titlefont=dict(color='purple'),
                             tickfont=dict(color='purple'),
                             overlaying='y', side='left', position=0.15),
             )
@@ -227,27 +228,60 @@ class MRO004(PlotSection, EntryData, ArchiveSection):
                                              figure=figure_json,
                                              open=True))
 
-            '''
-            with archive.m_context.raw_file(self.data_file, 'rb') as file:
-                df = pd.read_excel(file, sheet_name='Recipe')
-            dt_duration = ''
-            steps = []
-            for i, row in df.iterrows():
-                step = Recipe()
-                step.name = 'step ' + str(row['#'])
-                step.action = row['Action / Annotation']
-                dt_duration = pd.to_timedelta(row['Duration']).total_seconds()
-                step.duration = ureg.Quantity(dt_duration, 'seconds')
-                step.start_time = row['Start Time']
-                step.end_time = row['End Time']
-                match = re.search(r'[\d.]+', str(row['Tr']))
-                temperature_numeric = float(match.group()) if match else None
-                step.temperature = ureg.Quantity(
-                    temperature_numeric, 'celsius'
-                )
-                steps.append(step)
-            self.steps = steps
-            '''
+        # Extract recipe from PDF file
+        if self.recipe_file:
+            try:
+                with archive.m_context.raw_file(self.recipe_file, 'rb') as file:
+                    # Create a temporary file path for pdfplumber
+                    import tempfile
+                    import os
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                        tmp_file.write(file.read())
+                        tmp_file_path = tmp_file.name
+                    
+                    try:
+                        recipe_df = extract_recipe_from_pdf(tmp_file_path)
+                        
+                        steps = []
+                        for i, row in recipe_df.iterrows():
+                            step = Recipe()
+                            step.name = 'step ' + str(row['#'])
+                            step.action = row['Action/Annotation']
+                            
+                            # Calculate duration from start and end times
+                            if row['Start Time'] and row['End Time']:
+                                try:
+                                    # Parse time strings (HH:MM:SS format)
+                                    start_parts = row['Start Time'].split(':')
+                                    end_parts = row['End Time'].split(':')
+                                    
+                                    if len(start_parts) == 3 and len(end_parts) == 3:
+                                        start_seconds = int(start_parts[0]) * 3600 + int(start_parts[1]) * 60 + int(start_parts[2])
+                                        end_seconds = int(end_parts[0]) * 3600 + int(end_parts[1]) * 60 + int(end_parts[2])
+                                        duration_seconds = end_seconds - start_seconds
+                                        step.duration = ureg.Quantity(duration_seconds, 'seconds')
+                                    else:
+                                        step.duration = ureg.Quantity(0, 'seconds')
+                                except:
+                                    step.duration = ureg.Quantity(0, 'seconds')
+                            else:
+                                step.duration = ureg.Quantity(0, 'seconds')
+                            
+                            # Set start and end times (these are the process times from the PDF)
+                            step.start_time = row['Start Time'] if row['Start Time'] else None
+                            step.end_time = row['End Time'] if row['End Time'] else None
+                            
+                            steps.append(step)
+                        
+                        self.steps = steps
+                        
+                    finally:
+                        # Clean up temporary file
+                        os.unlink(tmp_file_path)
+                        
+            except Exception as e:
+                logger.warning(f"Failed to extract recipe from PDF: {e}")
 
 m_package.__init_metainfo__()
 
