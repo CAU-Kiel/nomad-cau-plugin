@@ -199,26 +199,42 @@ def extract_tables_from_report(pdf_path):
                 # Example: "Eu(NO3)3 in EtOH Other 50 g/mol - 0 0 g 100 w/w%"
                 
                 # Start from the end and work backwards
-                conc_notes = parts[-1]  # "w/w%"
-                actual_amount_num = parts[-2]  # "100"
+                conc_value = parts[-1]  # "w/w%"
+                conc_num = parts[-2]  # "100" (concentration number)
                 actual_amount_unit = parts[-3]  # "g"
-                actual_moles = parts[-4]  # "0" or "0.4" or "0.1"
-                stoic_coeff = parts[-5]  # "-"
-                mol_weight = parts[-6] + " " + parts[-7]  # "50 g/mol" or "79.102 g/mol"
-                type_col = parts[-8]  # "Other"
+                actual_amount_num = parts[-4]  # "20" or "5" (the actual amount in g)
+                actual_moles = parts[-5]  # "0.4" or "0.1" (the actual moles)
+                stoic_coeff = parts[-6]  # "-" (skip this)
+                mol_weight_unit = parts[-7]  # "g/mol"
+                mol_weight_value = parts[-8]  # "50" or "79.102" (this is the actual value)
                 
-                # Everything before that is the chemical name
-                chemical_name = ' '.join(parts[:-8])
+                # Everything before that is the chemical name (remove the "Other" part)
+                chemical_name_parts = parts[:-8]
+                # Remove "Other" from the end of the chemical name
+                if chemical_name_parts and chemical_name_parts[-1] == "Other":
+                    chemical_name_parts = chemical_name_parts[:-1]
+                chemical_name = ' '.join(chemical_name_parts)
                 
-                chemistry_data.append({
-                    'Chemical': chemical_name,
-                    'Type': type_col,
-                    'Mol Weight': mol_weight,
-                    'Stoic. Coeff': stoic_coeff,
-                    'Actual Moles': actual_moles,
-                    'Actual Amount': actual_amount_num + " " + actual_amount_unit,
-                    'Conc. Notes': conc_notes
-                })
+                # Only add chemicals with non-zero actual moles or actual amount
+                try:
+                    actual_moles_float = float(actual_moles)
+                    actual_amount_float = float(actual_amount_num)
+                    
+                    # Only add chemicals with non-zero moles
+                    if actual_moles_float > 0:
+                        chemistry_data.append({
+                            'Chemical': chemical_name,
+                            'Mol Weight': mol_weight_value + " g/mol",
+                            'Actual Moles': actual_moles + " mol",
+                            'Actual Amount': actual_amount_num + " " + actual_amount_unit,
+                            'Concentration': conc_num + " " + conc_value
+                        })
+                    else:
+                        print(f"Skipping chemical '{chemical_name}' - both actual moles ({actual_moles}) and actual amount ({actual_amount_num}) are zero")
+                except ValueError:
+                    # If conversion fails, skip this chemical
+                    print(f"Skipping chemical '{chemical_name}' - could not convert values to float")
+                    continue
     
     df_chemistry = pd.DataFrame(chemistry_data)
     
@@ -339,12 +355,22 @@ def extract_tables_from_report(pdf_path):
                         time_matches = list(re.finditer(time_pattern, action_text))
                         
                         if len(time_matches) >= 2:
-                            # Get the last two time matches
-                            last_time_match = time_matches[-1]
-                            second_last_time_match = time_matches[-2]
+                            # Get the last two time matches (start and end times)
+                            start_time_match = time_matches[-2]  # Second to last
+                            end_time_match = time_matches[-1]    # Last
                             
-                            # The action text ends at the start of the second-to-last time
-                            action_text = action_text[:second_last_time_match.start()].strip()
+                            # The action text ends at the start of the start_time
+                            # But we need to check if there's continuation text after the end_time
+                            action_text_before_times = action_text[:start_time_match.start()].strip()
+                            
+                            # Check if there's text after the end_time
+                            text_after_end_time = action_text[end_time_match.end():].strip()
+                            
+                            # Combine the action text with any continuation text
+                            if text_after_end_time:
+                                action_text = action_text_before_times + " " + text_after_end_time
+                            else:
+                                action_text = action_text_before_times
                     else:
                         start_time = ""
                         end_time = ""

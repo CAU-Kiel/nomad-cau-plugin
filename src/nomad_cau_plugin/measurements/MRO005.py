@@ -22,8 +22,6 @@ from typing import (
 )
 
 import numpy as np
-import pandas as pd
-import plotly.graph_objs as go
 from nomad.datamodel.data import (
     ArchiveSection,
     EntryData,
@@ -38,7 +36,7 @@ from nomad.metainfo import (
     SubSection,
 )
 from nomad.units import ureg
-from plotly.subplots import make_subplots
+from nomad_cau_plugin.normalizers.mro005_normalizer import MRO005Normalizer
 
 if TYPE_CHECKING:
     from nomad.datamodel.datamodel import (
@@ -127,7 +125,7 @@ class MRO005(PlotSection, EntryData, ArchiveSection):
         shape=['*'],
         unit='seconds',
     )
-    CalciumPhosphate_CeriumNitrate = Quantity(
+    CalciumNitrate_Complex = Quantity(
         type=np.float64,
         shape=['*'],
         unit='milliliter', #display attribute
@@ -165,85 +163,20 @@ class MRO005(PlotSection, EntryData, ArchiveSection):
         super().normalize(archive, logger)
 
         if self.data_file:
-            with archive.m_context.raw_file(self.data_file, 'rb') as file:
-                df = pd.read_excel(file, sheet_name='Measured values')
-            #for i, row in df.inerrows():
-            self.process_time = df['process_time']
-            self.CalciumPhosphate_CeriumNitrate = df['Ca(NO3)2 Ce(NO3)3']
-            self.Conductivity = df['Leitfähigkeit']
-            self.pH = df['pH-Druck']
-            self.Stirring_Speed = df['R']
-            self.Temperature = df['Tr']
+            # Process Excel data and create plots
+            data_result = MRO005Normalizer.process_excel_data(archive, self.data_file, logger)
             
-            fig = make_subplots(specs=[[{"secondary_y": True}]])
-            fig.add_trace(
-                go.Scatter(x=self.process_time,
-                            y=self.CalciumPhosphate_CeriumNitrate ,
-                            name = 'CalciumPhosphate_CeriumNitrate',
-                            yaxis='y')
-            )
-            fig.add_trace(
-                go.Scatter(x=self.process_time, y=self.Conductivity,
-                        name='Conductivity', yaxis='y2'),
-                        secondary_y=True,
-            )
-            fig.add_trace(
-                go.Scatter(x=self.process_time, y=self.pH,
-                        name='pH', yaxis='y3'),
-            )
-            fig.add_trace(
-                go.Scatter(x=self.process_time, y=self.Stirring_Speed,
-                        name='Stirring_Speed', yaxis='y4'),
-            )
-            fig.add_trace(
-                go.Scatter(x=self.process_time, y=self.Temperature,
-                        name='Temperature', yaxis='y5'),
-            )
-            fig.update_layout(
-                title='Process Parameters Over Time',
-                xaxis=dict(title='Process Time (s)'),
-                yaxis=dict(title='CalciumPhosphate_CeriumNitrate (ml)',
-                           titlefont=dict(color='blue'),
-                           tickfont=dict(color='blue')),
-                yaxis2=dict(title='Conductivity (mS/cm)', titlefont=dict(color='red'),
-                            tickfont=dict(color='red'),
-                            overlaying='y', side='right'),
-                yaxis3=dict(title='pH', titlefont=dict(color='green'),
-                            tickfont=dict(color='green'),
-                            overlaying='y', side='left', position=0.05),
-                yaxis4=dict(title='Stirring Speed (rpm)', titlefont=dict(color='orange'),
-                            tickfont=dict(color='orange'),
-                            overlaying='y', side='right', position=0.95),
-                yaxis5=dict(title='Temperature (°C)', titlefont=dict(color='purple'),
-                            tickfont=dict(color='purple'),
-                            overlaying='y', side='left', position=0.15),
-            )
-            figure_json = fig.to_plotly_json()
-            figure_json['config'] = {'staticPlot': True}
-            self.figures.append(PlotlyFigure(label='Process Parameters Over Time',
-                                             index=0,
-                                             figure=figure_json,
-                                             open=True))
+            # Set the processed data
+            self.process_time = data_result['process_time']
+            self.CalciumNitrate_Complex = data_result['calcium_nitrate_complex']
+            self.Conductivity = data_result['conductivity']
+            self.pH = data_result['ph']
+            self.Stirring_Speed = data_result['stirring_speed']
+            self.Temperature = data_result['temperature']
+            self.figures.append(data_result['figure'])
 
-            with archive.m_context.raw_file(self.data_file, 'rb') as file:
-                df = pd.read_excel(file, sheet_name='Recipe')
-            dt_duration = ''
-            steps = []
-            for i, row in df.iterrows():
-                step = Recipe()
-                step.name = 'step ' + str(row['#'])
-                step.action = row['Action / Annotation']
-                dt_duration = pd.to_timedelta(row['Duration']).total_seconds()
-                step.duration = ureg.Quantity(dt_duration, 'seconds')
-                step.start_time = row['Start Time']
-                step.end_time = row['End Time']
-                match = re.search(r'[\d.]+', str(row['Tr']))
-                temperature_numeric = float(match.group()) if match else None
-                step.temperature = ureg.Quantity(
-                    temperature_numeric, 'celsius'
-                )
-                steps.append(step)
-            self.steps = steps
+            # Process recipe data
+            self.steps = MRO005Normalizer.process_recipe_data(archive, self.data_file, logger)
 
 m_package.__init_metainfo__()
 
