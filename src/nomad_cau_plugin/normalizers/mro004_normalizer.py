@@ -165,17 +165,10 @@ class MRO004Normalizer:
                     if not chemistry_df.empty:
                         # Import Chemical class dynamically to avoid circular import
                         from nomad_cau_plugin.measurements.MRO004 import Chemical
-                        #for i, row in chemistry_df.iterrows():
-                        for row in extracted_rows:
+                        for i, row in chemistry_df.iterrows():
                             chemical = Chemical()
                             chemical.name = row['Chemical']
                             chemical.chemical_name = row['Chemical']
-                            
-                            # NOTE: PubChem/CAS database lookup happens automatically!
-                            # When Chemical.normalize() is called, it will create a
-                            # PubChemPureSubstanceSection with the chemical_name,
-                            # which will automatically fetch molecular formula, SMILES,
-                            # InChI, CAS number, and more from PubChem database.
                             
                             # Parse molecular weight
                             mol_weight_str = row['Mol Weight']
@@ -209,7 +202,6 @@ class MRO004Normalizer:
                             except:
                                 chemical.concentration = ""
                             
-                            chemical.normalize()
                             chemicals.append(chemical)
                     
                     # Process recipe data

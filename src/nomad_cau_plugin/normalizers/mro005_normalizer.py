@@ -15,100 +15,8 @@ from .column_utils import (
 class MRO005Normalizer:
     """
     Normalizer for MRO005 measurement data.
-    Handles Excel data processing, chemistry extraction, and recipe extraction.
+    Handles Excel data processing and recipe extraction.
     """
-    
-    @staticmethod
-    def process_chemistry_data(archive, data_file, logger):
-        """
-        Process chemistry data from Excel file (if Chemistry sheet exists).
-        
-        Args:
-            archive: The archive containing the data
-            data_file: Path to the Excel data file
-            logger: Logger instance
-            
-        Returns:
-            list: List of Chemical objects (empty if no Chemistry sheet found)
-        """
-        chemicals = []
-        
-        try:
-            with archive.m_context.raw_file(data_file, 'rb') as file:
-                # Try to read Chemistry sheet
-                try:
-                    df = pd.read_excel(file, sheet_name='Chemistry')
-                    logger.info(f"Successfully read Chemistry sheet from Excel file")
-                except ValueError:
-                    # Chemistry sheet doesn't exist - this is OK
-                    logger.info("No Chemistry sheet found in Excel file - skipping chemistry data")
-                    return chemicals
-                except Exception as e:
-                    logger.warning(f"Could not read Chemistry sheet: {e}")
-                    return chemicals
-            
-            # Process chemistry data if we have it
-            if not df.empty:
-                # Import Chemical class dynamically to avoid circular import
-                from nomad_cau_plugin.measurements.MRO005 import Chemical
-                
-                # Assuming the Chemistry sheet has columns like:
-                # 'Chemical', 'Mol Weight', 'Actual Moles', 'Actual Amount', 'Concentration'
-                for i, row in df.iterrows():
-                    chemical = Chemical()
-                    
-                    # Get chemical name from first column (adapt column name as needed)
-                    chem_name_col = df.columns[0] if 'Chemical' not in df.columns else 'Chemical'
-                    chemical.name = str(row[chem_name_col])
-                    chemical.chemical_name = str(row[chem_name_col])
-                    
-                    # NOTE: PubChem/CAS database lookup happens automatically!
-                    # When Chemical.normalize() is called, it will create a
-                    # PubChemPureSubstanceSection with the chemical_name,
-                    # which will automatically fetch molecular formula, SMILES,
-                    # InChI, CAS number, and more from PubChem database.
-                    
-                    # Parse molecular weight if available
-                    if 'Mol Weight' in df.columns or 'Molecular Weight' in df.columns:
-                        mol_weight_col = 'Mol Weight' if 'Mol Weight' in df.columns else 'Molecular Weight'
-                        try:
-                            mol_weight_value = float(str(row[mol_weight_col]).split()[0])
-                            chemical.mol_weight = ureg.Quantity(mol_weight_value, 'g/mol')
-                        except:
-                            pass
-                    
-                    # Parse actual moles if available
-                    if 'Actual Moles' in df.columns:
-                        try:
-                            actual_moles_value = float(str(row['Actual Moles']).split()[0])
-                            chemical.actual_moles = ureg.Quantity(actual_moles_value, 'mol')
-                        except:
-                            pass
-                    
-                    # Parse actual amount if available
-                    if 'Actual Amount' in df.columns:
-                        try:
-                            actual_amount_value = float(str(row['Actual Amount']).split()[0])
-                            chemical.actual_amount = ureg.Quantity(actual_amount_value, 'g')
-                        except:
-                            pass
-                    
-                    # Parse concentration if available
-                    if 'Concentration' in df.columns:
-                        try:
-                            chemical.concentration = str(row['Concentration'])
-                        except:
-                            pass
-                    
-                    chemical.normalize()
-                    chemicals.append(chemical)
-                
-                logger.info(f"Processed {len(chemicals)} chemicals from Excel Chemistry sheet")
-        
-        except Exception as e:
-            logger.warning(f"Error processing chemistry data from Excel: {e}")
-        
-        return chemicals
     
     @staticmethod
     def process_excel_data(archive, data_file, logger):
@@ -123,7 +31,6 @@ class MRO005Normalizer:
         with archive.m_context.raw_file(data_file, 'rb') as file:
             try:
                 df = pd.read_excel(file, sheet_name='Measured values')
-                #df = pd.read_excel(file, sheet_name='Measured values', engine='openpyxl')
                 logger.info(f"Successfully read Excel file")
             except Exception as e:
                 logger.error(f"Failed to read Excel file: {e}")

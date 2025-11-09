@@ -1,6 +1,0 @@
-data:
-  m_def: nomad_cau_plugin.measurements.MRO004.MRO004
-  name: Test MRO004 with PubChem Integration
-  data_file: MRO004 IR 12.08.16 CaP.csv
-  report_file: ../../../Report MRO008.pdf
-
