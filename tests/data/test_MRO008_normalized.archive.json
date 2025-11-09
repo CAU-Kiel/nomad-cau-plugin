@@ -1,0 +1,85 @@
+{
+  "data": {
+    "m_def": "nomad_cau_plugin.measurements.MRO004.MRO004",
+    "report_file": "/home/lankovas/nomad-distro-dev/Report MRO008.pdf",
+    "chemicals": [
+      {
+        "name": "Ca(NO3)2 Eu(NO3)3 in H2O",
+        "chemical_name": "Ca(NO3)2 Eu(NO3)3 in H2O",
+        "mol_weight": 50.0,
+        "actual_moles": 0.1,
+        "actual_amount": 5.0,
+        "concentration": "100"
+      },
+      {
+        "name": "(NH4)2HPO4",
+        "chemical_name": "(NH4)2HPO4",
+        "mol_weight": 50.0,
+        "actual_moles": 0.4,
+        "actual_amount": 20.0,
+        "concentration": "100"
+      }
+    ],
+    "steps": [
+      {
+        "name": "step 1",
+        "start_time": "2025-10-28T00:00:00+00:00",
+        "duration": 5.0,
+        "action": "Start of experiment on 06.09.2016 at 11:10:33 with Tj set to 25 C and stirrer off, (NH4)2HPO4=20 ml",
+        "end_time": "2025-10-28T00:00:05+00:00"
+      },
+      {
+        "name": "step 2",
+        "start_time": "2025-10-28T00:00:05+00:00",
+        "duration": 6.0,
+        "action": "Ramp stirrer speed to 200 rpm over 3 sec",
+        "end_time": "2025-10-28T00:00:11+00:00"
+      },
+      {
+        "name": "step 3",
+        "start_time": "2025-10-28T00:00:11+00:00",
+        "duration": 183.0,
+        "action": "Cool Tr to 10 \u00b0C at 5 K/min",
+        "end_time": "2025-10-28T00:03:14+00:00"
+      },
+      {
+        "name": "step 4",
+        "start_time": "2025-10-28T00:13:14+00:00",
+        "duration": 632.0,
+        "action": "Dose 5 ml of Ca(NO3)2 Eu(NO3)3 in H2O at 0.5 ml/min using DU1",
+        "end_time": "2025-10-28T00:23:46+00:00"
+      },
+      {
+        "name": "step 5",
+        "start_time": "2025-10-28T00:53:47+00:00",
+        "duration": 783.0,
+        "action": "Heat Tr to 75 \u00b0C at 5 K/min",
+        "end_time": "2025-10-28T01:06:50+00:00"
+      },
+      {
+        "name": "step 6",
+        "start_time": "2025-10-28T01:06:50+00:00",
+        "duration": 303.0,
+        "action": "Heat Tr to 80 \u00b0C at 1 K/min",
+        "end_time": "2025-10-28T01:11:53+00:00"
+      },
+      {
+        "name": "step 7",
+        "start_time": "2025-10-28T01:21:53+00:00",
+        "duration": 722.0,
+        "action": "Cool Tr to 20\u00b0C at 5 K/min",
+        "end_time": "2025-10-28T01:33:55+00:00"
+      },
+      {
+        "name": "step 8",
+        "start_time": "2025-10-28T01:33:55+00:00",
+        "duration": 6.0,
+        "action": "End of experiment on 06.09.2016 at 12:44:28 with Tj set to 25 \u00b0C and stirrer off",
+        "end_time": "2025-10-28T01:34:01+00:00"
+      }
+    ]
+  },
+  "results": {
+    "properties": {}
+  }
+}

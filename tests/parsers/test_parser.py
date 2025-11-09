@@ -1,6 +1,6 @@
 import logging
 
-from nomad.datamodel import EntryArchive
+from nomad.metainfo import EntryArchive
 
 from nomad_cau_plugin.parsers.parser import NewParser
 

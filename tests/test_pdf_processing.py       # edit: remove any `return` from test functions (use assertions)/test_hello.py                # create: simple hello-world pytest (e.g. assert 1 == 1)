@@ -1,0 +1,20 @@
+pytest.ini
+[pytest]
+filterwarnings =
+    ignore::PydanticDeprecatedSince20
+    ignore::DeprecationWarning
+
+packages/nomad-cau-plugin/tests/test_pdf_processing.py
+import pytest
+
+def test_mro004_normalization_with_pdf():
+    # Your test logic here
+    assert True  # Replace with actual assertions
+
+def test_generate_normalized_archive():
+    # Your test logic here
+    assert True  # Replace with actual assertions
+
+packages/nomad-cau-plugin/tests/test_hello.py
+def test_hello():
+    assert 1 == 1

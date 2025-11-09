@@ -26,7 +26,10 @@ from nomad.datamodel.data import (
     ArchiveSection,
     EntryData,
 )
-from nomad.datamodel.metainfo.basesections import ProcessStep
+from nomad.datamodel.metainfo.basesections import (
+    ProcessStep,
+    PubChemPureSubstanceSection,
+)
 from nomad.datamodel.metainfo.eln import ElnBaseSection
 from nomad.datamodel.metainfo.plot import PlotlyFigure, PlotSection
 from nomad.metainfo import (
@@ -54,6 +57,7 @@ from nomad_cau_plugin.normalizers.mro004_normalizer import MRO004Normalizer
 class Chemical(ElnBaseSection):
     '''
         Class for chemicals from the PDF report.
+        Now with automatic PubChem/CAS database integration!
     '''
     m_def=Section(
         a_eln={
@@ -61,6 +65,7 @@ class Chemical(ElnBaseSection):
                 'order': [
                     'name',
                     'chemical_name',
+                    'pure_substance',
                     'mol_weight',
                     'actual_moles',
                     'actual_amount',
@@ -73,6 +78,13 @@ class Chemical(ElnBaseSection):
         type=str,
         description='name of the chemical',
         a_eln={'component':'StringEditQuantity'}
+    )
+    pure_substance = SubSection(
+        section_def=PubChemPureSubstanceSection,
+        description="""
+        Chemical substance information with automatic PubChem/CAS database lookup.
+        Automatically populates molecular formula, SMILES, InChI, CAS number, and more.
+        """,
     )
     mol_weight = Quantity(
         type=np.float64,
@@ -101,7 +113,9 @@ class Chemical(ElnBaseSection):
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         """
         The normalizer for the 'Chemical' class.
-        Implements automatic recalculation: m = n * M (mass = moles × molecular weight)
+        Implements:
+        1. Automatic PubChem/CAS database lookup
+        2. Automatic recalculation: m = n * M (mass = moles × molecular weight)
 
         Args:
             archive (EntryArchive): The archive containing the section that is being
@@ -113,6 +127,15 @@ class Chemical(ElnBaseSection):
         # Set the name for GUI display if not already set
         if not self.name and self.chemical_name:
             self.name = self.chemical_name
+        
+        # AUTO-CREATE PubChem reference if chemical_name exists but pure_substance doesn't
+        if self.chemical_name and not self.pure_substance:
+            try:
+                logger.info(f"Creating PubChem reference for chemical: {self.chemical_name}")
+                self.pure_substance = PubChemPureSubstanceSection(name=self.chemical_name)
+                logger.info(f"Successfully created PubChem reference for {self.chemical_name}")
+            except Exception as e:
+                logger.warning(f"Could not create PubChem reference for {self.chemical_name}: {e}")
         
         # Auto-recalculate if both mol_weight and one of the other values are set
         if hasattr(self, 'mol_weight') and self.mol_weight is not None:
@@ -247,7 +270,7 @@ class MRO004(PlotSection, EntryData, ArchiveSection):
         '''
         super().normalize(archive, logger)
 
-        # Process CSV data file
+        # Process CSV data fiI le
         if self.data_file:
             data_result = MRO004Normalizer.process_csv_data(archive, self.data_file, logger)
             

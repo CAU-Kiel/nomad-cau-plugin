@@ -1,3 +1,3 @@
 data:
   m_def: nomad_cau_plugin.measurements.MRO004.MRO004
-  data_file: 'MRO006-A ohne IR 2016-08-31 reactor data.csv'
+  data_file: 'MRO004-A ohne IR 2016-08-31 reactor data.csv'
