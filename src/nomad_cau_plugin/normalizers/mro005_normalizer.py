@@ -6,6 +6,8 @@ from nomad.datamodel.metainfo.plot import PlotlyFigure
 from nomad.units import ureg
 from plotly.subplots import make_subplots
 
+from nomad_cau_plugin.measurements.MRO005 import Recipe
+
 from .column_utils import (
     find_calcium_nitrate_column,
     find_conductivity_column,
@@ -174,8 +176,6 @@ class MRO005Normalizer:
                 raise
 
         steps = []
-        # Import Recipe class dynamically to avoid circular import
-        from nomad_cau_plugin.measurements.MRO005 import Recipe
 
         for i, row in df.iterrows():
             step = Recipe()
