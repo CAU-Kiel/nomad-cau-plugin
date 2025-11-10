@@ -1,10 +1,10 @@
 def find_calcium_nitrate_column(df):
     """
     Find the column that starts with 'Ca(NO3)2' in the dataframe.
-    
+
     Args:
         df: pandas DataFrame
-        
+
     Returns:
         str: Column name that starts with 'Ca(NO3)2' or None if not found
     """
@@ -13,14 +13,15 @@ def find_calcium_nitrate_column(df):
             return col
     return None
 
+
 def find_column_by_pattern(df, pattern):
     """
     Find a column that matches a specific pattern.
-    
+
     Args:
         df: pandas DataFrame
         pattern: str pattern to match (e.g., 'Ca(NO3)2', 'Leitfähigkeit')
-        
+
     Returns:
         str: Column name that matches the pattern or None if not found
     """
@@ -29,13 +30,14 @@ def find_column_by_pattern(df, pattern):
             return col
     return None
 
+
 def find_conductivity_column(df):
     """
     Find the conductivity column in the dataframe.
-    
+
     Args:
         df: pandas DataFrame
-        
+
     Returns:
         str: Column name for conductivity or None if not found
     """
@@ -47,13 +49,14 @@ def find_conductivity_column(df):
             return col
     return None
 
+
 def find_ph_column(df):
     """
     Find the pH column in the dataframe.
-    
+
     Args:
         df: pandas DataFrame
-        
+
     Returns:
         str: Column name for pH or None if not found
     """
@@ -65,13 +68,14 @@ def find_ph_column(df):
             return col
     return None
 
+
 def find_temperature_column(df):
     """
     Find the temperature column in the dataframe.
-    
+
     Args:
         df: pandas DataFrame
-        
+
     Returns:
         str: Column name for temperature or None if not found
     """
