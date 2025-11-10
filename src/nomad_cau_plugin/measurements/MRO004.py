@@ -44,11 +44,9 @@ if TYPE_CHECKING:
     from structlog.stdlib import (
         BoundLogger,
     )
-
-# Import the normalizer
 from nomad_cau_plugin.normalizers.mro004_normalizer import MRO004Normalizer
 
-m_package = Package(name='MRO005 archive schema')
+m_package = Package(name='MRO004 archive schema')
 
 
 class Chemical(ElnBaseSection):
