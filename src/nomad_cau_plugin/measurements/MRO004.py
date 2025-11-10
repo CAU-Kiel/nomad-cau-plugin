@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-import re
 from typing import (
     TYPE_CHECKING,
 )
@@ -28,7 +27,7 @@ from nomad.datamodel.data import (
 )
 from nomad.datamodel.metainfo.basesections import ProcessStep
 from nomad.datamodel.metainfo.eln import ElnBaseSection
-from nomad.datamodel.metainfo.plot import PlotlyFigure, PlotSection
+from nomad.datamodel.metainfo.plot import PlotSection
 from nomad.metainfo import (
     Datetime,
     Package,
@@ -46,10 +45,10 @@ if TYPE_CHECKING:
         BoundLogger,
     )
 
-m_package = Package(name='MRO005 archive schema')
-
 # Import the normalizer
 from nomad_cau_plugin.normalizers.mro004_normalizer import MRO004Normalizer
+
+m_package = Package(name='MRO005 archive schema')
 
 
 class Chemical(ElnBaseSection):

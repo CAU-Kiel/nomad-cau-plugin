@@ -11,6 +11,7 @@ def _extract_text_from_pdf(pdf_path):
             raw_text += page.extract_text() + '\n'
     return raw_text.split('\n')
 
+
 def _find_section_indices(lines, start_marker, end_marker):
     start, end = None, None
     for i, line in enumerate(lines):
@@ -20,16 +21,19 @@ def _find_section_indices(lines, start_marker, end_marker):
             end = i
     return start, end
 
+
 def _get_recipe_lines(lines, recipe_start, trend_start):
     if recipe_start is not None and trend_start is not None:
         return lines[recipe_start + 1 : trend_start]
     return []
+
 
 def _find_recipe_header(recipe_lines):
     for i, line in enumerate(recipe_lines):
         if '#' in line and 'Action' in line and 'Start' in line and 'End' in line:
             return i + 1
     return None
+
 
 def _reconstruct_entries(recipe_lines, data_start):
     full_entries = []
@@ -48,6 +52,7 @@ def _reconstruct_entries(recipe_lines, data_start):
         full_entries.append(current_entry.strip())
     return full_entries
 
+
 def _parse_recipe_entry(entry):
     step_match = re.match(r'^(\d+)\s+(.+)', entry)
     if not step_match:
@@ -65,8 +70,10 @@ def _parse_recipe_entry(entry):
         if len(time_matches) >= TIME_COUNT_FOR_PROCESS:
             second_last_time_match = time_matches[-TIME_COUNT_FOR_PROCESS]
             last_time_match = time_matches[-1]
-            action_text_before_times = action_text[:second_last_time_match.start()].strip()  # noqa: E501
-            text_after_end_time = action_text[last_time_match.end():].strip()
+            action_text_before_times = action_text[
+                : second_last_time_match.start()
+            ].strip()  # noqa: E501
+            text_after_end_time = action_text[last_time_match.end() :].strip()
             if text_after_end_time:
                 action_text = action_text_before_times + ' ' + text_after_end_time
             else:
@@ -82,6 +89,7 @@ def _parse_recipe_entry(entry):
         'End Time': end_time,
     }
 
+
 def extract_recipe_from_pdf(pdf_path):
     """
     Extracts recipe data from a PDF file with proper multi-line handling.
@@ -94,8 +102,9 @@ def extract_recipe_from_pdf(pdf_path):
         '#', 'Action/Annotation', 'Start Time', 'End Time'
     """
     lines = _extract_text_from_pdf(pdf_path)
-    recipe_start, trend_start = _find_section_indices(lines, '4 Recipe', 
-                                                      '5 Trend Graphs')
+    recipe_start, trend_start = _find_section_indices(
+        lines, '4 Recipe', '5 Trend Graphs'
+    )
     recipe_lines = _get_recipe_lines(lines, recipe_start, trend_start)
     recipe_data = []
     if recipe_lines:
@@ -116,6 +125,7 @@ def _extract_section_indices(lines):
         if marker in ['2 Chemistry', '3 Setup', '4 Recipe', '5 Trend Graphs']:
             indices[marker] = i
     return indices
+
 
 def _extract_chemistry_table(chemistry_lines):
     chemistry_data = []
@@ -139,18 +149,23 @@ def _extract_chemistry_table(chemistry_lines):
                 chemical_name = ' '.join(chemical_name_parts)
                 try:
                     actual_moles_float = float(actual_moles)
-                    #actual_amount_float = float(actual_amount_num)
+                    # actual_amount_float = float(actual_amount_num)
                     if actual_moles_float > 0:
-                        chemistry_data.append({
-                            'Chemical': chemical_name,
-                            'Mol Weight': mol_weight_value + ' g/mol',
-                            'Actual Moles': actual_moles + ' mol',
-                            'Actual Amount': actual_amount_num + ' ' + actual_amount_unit,  # noqa: E501
-                            'Concentration': conc_num + ' ' + conc_value,
-                        })
+                        chemistry_data.append(
+                            {
+                                'Chemical': chemical_name,
+                                'Mol Weight': mol_weight_value + ' g/mol',
+                                'Actual Moles': actual_moles + ' mol',
+                                'Actual Amount': actual_amount_num
+                                + ' '
+                                + actual_amount_unit,  # noqa: E501
+                                'Concentration': conc_num + ' ' + conc_value,
+                            }
+                        )
                 except ValueError:
                     continue
     return pd.DataFrame(chemistry_data)
+
 
 def _extract_setup_table(setup_lines):
     setup_data = []
@@ -164,41 +179,51 @@ def _extract_setup_table(setup_lines):
                 continue
             if re.match(r'^[A-Za-z]+\s*:', stripped_line):
                 if current_component:
-                    setup_data.append({
-                        'Component': current_component,
-                        'Description': current_description.strip(),
-                    })
+                    setup_data.append(
+                        {
+                            'Component': current_component,
+                            'Description': current_description.strip(),
+                        }
+                    )
                 parts = stripped_line.split(':', 1)
                 current_component = parts[0].strip()
                 current_description = parts[1].strip() if len(parts) > 1 else ''
-            elif not current_component and stripped_line and not stripped_line.endswith('Description'):  # noqa: E501
+            elif (
+                not current_component
+                and stripped_line
+                and not stripped_line.endswith('Description')
+            ):  # noqa: E501
                 current_component = stripped_line
                 current_description = ''
             elif current_component:
                 current_description += ' ' + stripped_line
         if current_component:
-            setup_data.append({
-                'Component': current_component,
-                'Description': current_description.strip(),
-            })
+            setup_data.append(
+                {
+                    'Component': current_component,
+                    'Description': current_description.strip(),
+                }
+            )
     return pd.DataFrame(setup_data)
+
 
 def _extract_recipe_table(recipe_lines):
     recipe_data = []
     if not recipe_lines:
         return pd.DataFrame(recipe_data)
-    
+
     recipe_lines = recipe_lines[1:]
     data_start = _find_recipe_header(recipe_lines)
-    
+
     if data_start is not None:
         full_entries = _reconstruct_entries(recipe_lines, data_start)
         for entry in full_entries:
             parsed = _parse_recipe_entry(entry)
             if parsed:
                 recipe_data.append(parsed)
-    
+
     return pd.DataFrame(recipe_data)
+
 
 def extract_tables_from_report(pdf_path):
     """
@@ -218,9 +243,21 @@ def extract_tables_from_report(pdf_path):
             raw_text += page.extract_text() + '\n'
     lines = raw_text.split('\n')
     indices = _extract_section_indices(lines)
-    chemistry_lines = lines[indices.get('2 Chemistry', 0):indices.get('3 Setup', 0)] if '2 Chemistry' in indices and '3 Setup' in indices else []  # noqa: E501
-    setup_lines = lines[indices.get('3 Setup', 0):indices.get('4 Recipe', 0)] if '3 Setup' in indices and '4 Recipe' in indices else []  # noqa: E501
-    recipe_lines = lines[indices.get('4 Recipe', 0):indices.get('5 Trend Graphs', 0)] if '4 Recipe' in indices and '5 Trend Graphs' in indices else []  # noqa: E501
+    chemistry_lines = (
+        lines[indices.get('2 Chemistry', 0) : indices.get('3 Setup', 0)]
+        if '2 Chemistry' in indices and '3 Setup' in indices
+        else []
+    )  # noqa: E501
+    setup_lines = (
+        lines[indices.get('3 Setup', 0) : indices.get('4 Recipe', 0)]
+        if '3 Setup' in indices and '4 Recipe' in indices
+        else []
+    )  # noqa: E501
+    recipe_lines = (
+        lines[indices.get('4 Recipe', 0) : indices.get('5 Trend Graphs', 0)]
+        if '4 Recipe' in indices and '5 Trend Graphs' in indices
+        else []
+    )  # noqa: E501
     df_chemistry = _extract_chemistry_table(chemistry_lines)
     df_setup = _extract_setup_table(setup_lines)
     df_recipe = _extract_recipe_table(recipe_lines)

@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-import re
 from typing import (
     TYPE_CHECKING,
 )
@@ -27,7 +26,7 @@ from nomad.datamodel.data import (
     EntryData,
 )
 from nomad.datamodel.metainfo.basesections import ProcessStep
-from nomad.datamodel.metainfo.plot import PlotlyFigure, PlotSection
+from nomad.datamodel.metainfo.plot import PlotSection
 from nomad.metainfo import (
     Datetime,
     Package,
@@ -35,7 +34,7 @@ from nomad.metainfo import (
     Section,
     SubSection,
 )
-from nomad.units import ureg
+
 from nomad_cau_plugin.normalizers.mro005_normalizer import MRO005Normalizer
 
 if TYPE_CHECKING:

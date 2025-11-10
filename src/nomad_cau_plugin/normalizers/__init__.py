@@ -16,6 +16,3 @@ normalizer_entry_point = NewNormalizerEntryPoint(
     description='New normalizer entry point configuration.',
 )
 
-# Import the new normalizers
-from .mro004_normalizer import MRO004Normalizer
-from .mro005_normalizer import MRO005Normalizer

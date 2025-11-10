@@ -227,7 +227,10 @@ class MRO004Normalizer:
                     start_parts = row['Start Time'].split(':')
                     end_parts = row['End Time'].split(':')
 
-                    if len(start_parts) == TIME_PARTS_COUNT and len(end_parts) == TIME_PARTS_COUNT:  # noqa: E501
+                    if (
+                        len(start_parts) == TIME_PARTS_COUNT
+                        and len(end_parts) == TIME_PARTS_COUNT
+                    ):  # noqa: E501
                         start_seconds = (
                             int(start_parts[0]) * 3600
                             + int(start_parts[1]) * 60
