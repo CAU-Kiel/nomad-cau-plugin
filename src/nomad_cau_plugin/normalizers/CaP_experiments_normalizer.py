@@ -166,7 +166,7 @@ class MRO004Normalizer:
     @staticmethod
     def _process_chemistry_data(chemistry_df):
         """Extract chemical data from chemistry dataframe."""
-        from nomad_cau_plugin.measurements.MRO004 import Chemical
+        from nomad_cau_plugin.measurements.CaP_experiments import Chemical
 
         chemicals = []
         if chemistry_df.empty:
@@ -211,7 +211,7 @@ class MRO004Normalizer:
     @staticmethod
     def _process_recipe_data(recipe_df):
         """Extract recipe steps from recipe dataframe."""
-        from nomad_cau_plugin.measurements.MRO004 import Recipe
+        from nomad_cau_plugin.measurements.CaP_experiments import Recipe
 
         TIME_PARTS_COUNT = 3
         steps = []

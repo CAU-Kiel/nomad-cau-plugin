@@ -44,9 +44,9 @@ if TYPE_CHECKING:
     from structlog.stdlib import (
         BoundLogger,
     )
-from nomad_cau_plugin.normalizers.mro004_normalizer import MRO004Normalizer
+from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import MRO004Normalizer
 
-m_package = Package(name='MRO004 archive schema')
+m_package = Package(name='Calcium Phosphate experiments archive schema')
 
 
 class Chemical(ElnBaseSection):
@@ -195,9 +195,9 @@ class Recipe(ProcessStep, ArchiveSection):
         super().normalize(archive, logger)
 
 
-class MRO004(PlotSection, EntryData, ArchiveSection):
+class CaP_experiments(PlotSection, EntryData, ArchiveSection):
     """
-    Class updated to use plotly_graph_object annotation.
+    Class for MRO004 Calcium Phosphate experiments.
     """
 
     m_def = Section()

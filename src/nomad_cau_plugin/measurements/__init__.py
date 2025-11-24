@@ -16,11 +16,14 @@ MRO005_schema = MRO005SchemaPackageEntryPoint(
 
 class MRO004SchemaPackageEntryPoint(SchemaPackageEntryPoint):
     def load(self):
-        from nomad_cau_plugin.measurements.MRO004 import m_package as m_package_mro004
+        from nomad_cau_plugin.measurements.CaP_experiments import (
+            m_package as m_package_mro004,
+        )
 
         return m_package_mro004
 
 
 MRO004_schema = MRO004SchemaPackageEntryPoint(
-    name='experiment MRO004 schema', description='Schema tailored to experiment MRO004.'
+    name='experiment MRO004 schema',
+    description='Schema tailored to experiment MRO004 and other Calcium Phosphate experiments.'  # noqa: E501
 )
