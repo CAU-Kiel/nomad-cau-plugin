@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from structlog.stdlib import (
         BoundLogger,
     )
-from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import MRO004Normalizer
+from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import CaPNormalizer
 
 m_package = Package(name='Calcium Phosphate experiments archive schema')
 
@@ -214,6 +214,17 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
     )
+    data_file = Quantity(
+        type=str,
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    xrd_file = Quantity(
+        type=str,
+        description='XRD data file in .xyd format',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
     process_time = Quantity(
         type=np.float64,
         shape=['*'],
@@ -258,7 +269,7 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
 
         # Process CSV data file
         if self.data_file:
-            data_result = MRO004Normalizer.process_csv_data(
+            data_result = CaPNormalizer.process_csv_data(
                 archive, self.data_file, logger
             )
 
@@ -272,11 +283,18 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
 
         # Process PDF report file
         if self.report_file and not self.chemicals:
-            chemicals, steps = MRO004Normalizer.process_pdf_report(
+            chemicals, steps = CaPNormalizer.process_pdf_report(
                 archive, self.report_file, logger
             )
             self.chemicals = chemicals
             self.steps = steps
+
+        #Process XRD file
+        if self.xrd_file:
+            xrd_result = CaPNormalizer.process_xrd_file(
+                archive, self.xrd_file, logger
+            )
+            self.figures.append(xrd_result['figure'])
 
 
 m_package.__init_metainfo__()

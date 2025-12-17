@@ -17,7 +17,7 @@ from .column_utils import (
 )
 
 
-class MRO004Normalizer:
+class CaPNormalizer:
     """
     Normalizer for MRO004 measurement data.
     Handles CSV data processing and PDF report extraction.
@@ -286,8 +286,8 @@ class MRO004Normalizer:
                     )
 
                     # Process chemistry and recipe data
-                    chemicals = MRO004Normalizer._process_chemistry_data(chemistry_df)
-                    steps = MRO004Normalizer._process_recipe_data(recipe_df)
+                    chemicals = CaPNormalizer._process_chemistry_data(chemistry_df)
+                    steps = CaPNormalizer._process_recipe_data(recipe_df)
 
                     return chemicals, steps
 
@@ -298,3 +298,70 @@ class MRO004Normalizer:
         except Exception as e:
             logger.warning(f'Failed to extract data from PDF report: {e}')
             return [], []
+
+    @staticmethod
+    def normalize_xrd_data(archive, xrd_file, logger):
+        """
+        Parse an XRD ``.xyd`` text file with two columns (2θ, intensity)
+        and create a simple line plot with 2θ on the x-axis.
+
+        Args:
+            archive: The archive containing the data.
+            xrd_file: Path to the XRD data file.
+            logger: Logger instance.
+        """
+
+        with archive.m_context.raw_file(xrd_file, 'rb') as file:
+            try:
+                df = pd.read_csv(
+                    file,
+                    delim_whitespace=True,
+                    header=None,
+                    comment='#',
+                    names=['two_theta', 'intensity'],
+                    engine='python',
+                )
+                logger.info('Successfully parsed XRD data file')
+            except Exception as exc:  # pragma: no cover - guarded read
+                logger.error(f'Failed to read XRD data file: {exc}')
+                raise
+
+        # Ensure numeric values and drop malformed rows
+        df['two_theta'] = pd.to_numeric(df['two_theta'], errors='coerce')
+        df['intensity'] = pd.to_numeric(df['intensity'], errors='coerce')
+        df = df.dropna(subset=['two_theta', 'intensity'])
+
+        two_theta = df['two_theta'].to_numpy()
+        intensity = df['intensity'].to_numpy()
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=two_theta,
+                y=intensity,
+                mode='lines',
+                name='XRD pattern',
+            )
+        )
+        fig.update_layout(
+            title='XRD Pattern',
+            xaxis=dict(title='2θ (degrees)'),
+            yaxis=dict(title='Intensity (a.u.)'),
+        )
+
+        figure_json = fig.to_plotly_json()
+        figure_json['config'] = {'staticPlot': True}
+
+        return {
+            'two_theta': two_theta,
+            'intensity': intensity,
+            'figure': PlotlyFigure(
+                label='XRD Pattern',
+                index=0,
+                figure=figure_json,
+                open=True,
+            ),
+        }
+
+    # Alias for the measurement class naming
+    process_xrd_file = normalize_xrd_data
