@@ -8,6 +8,7 @@ from nomad.units import ureg
 from plotly.subplots import make_subplots
 
 from nomad_cau_plugin.parsers.pdf_extract import extract_tables_from_report
+from nomad_cau_plugin.parsers.xrd_from_cif import xrd_pattern_from_cif_bytes
 
 from .column_utils import (
     find_calcium_nitrate_column,
@@ -300,10 +301,98 @@ class CaPNormalizer:
             return [], []
 
     @staticmethod
-    def normalize_xrd_data(archive, xrd_file, logger):
+    def _as_list(value):
+        if not value:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return list(value)
+
+    @staticmethod
+    def _read_xyd_df(archive, path: str) -> pd.DataFrame:
+        with archive.m_context.raw_file(path, 'rb') as file:
+            df_local = pd.read_csv(
+                file,
+                delim_whitespace=True,
+                header=None,
+                comment='#',
+                names=['two_theta', 'intensity'],
+                usecols=[0, 1],
+                engine='python',
+            )
+        df_local['two_theta'] = pd.to_numeric(
+            df_local['two_theta'], errors='coerce'
+        )
+        df_local['intensity'] = pd.to_numeric(
+            df_local['intensity'], errors='coerce'
+        )
+        return df_local.dropna(subset=['two_theta', 'intensity'])
+
+    @staticmethod
+    def _read_cif_as_pattern_df(
+        archive, path: str, *, two_theta_range: tuple[float, float] | None = None
+    ) -> pd.DataFrame:
+        with archive.m_context.raw_file(path, 'rb') as file:
+            cif_bytes = file.read()
+        pattern = xrd_pattern_from_cif_bytes(cif_bytes, two_theta_range=two_theta_range)
+        return pd.DataFrame(
+            {'two_theta': pattern.two_theta, 'intensity': pattern.intensity}
+        )
+
+    @staticmethod
+    def _collect_reference_dfs(
+        archive,
+        logger,
+        reference_files: list[str],
+        reference_cif_files: list[str],
+        *,
+        two_theta_range: tuple[float, float] | None = None,
+    ) -> list[tuple[str, pd.DataFrame]]:
+        reference_dfs: list[tuple[str, pd.DataFrame]] = []
+
+        for ref_file in reference_files:
+            try:
+                reference_dfs.append(
+                    (ref_file, CaPNormalizer._read_xyd_df(archive, ref_file))
+                )
+            except Exception as exc:
+                logger.warning(f'Failed to read reference XRD file {ref_file}: {exc}')
+
+        for cif_file in reference_cif_files:
+            try:
+                reference_dfs.append(
+                    (
+                        cif_file,
+                        CaPNormalizer._read_cif_as_pattern_df(
+                            archive, cif_file, two_theta_range=two_theta_range
+                        ),
+                    )
+                )
+            except Exception as exc:
+                logger.warning(
+                    f'Failed to generate XRD pattern from CIF {cif_file}: {exc}'
+                )
+
+        return reference_dfs
+
+    @staticmethod
+    def normalize_xrd_data(
+        archive,
+        xrd_file,
+        logger,
+        reference_files=None,
+        reference_cif_files=None,
+    ):
         """
-        Parse an XRD ``.xyd`` text file with two columns (2θ, intensity)
-        and create a simple line plot with 2θ on the x-axis.
+                Parse an XRD ``.xyd`` text file with two columns (2θ, intensity)
+                and create a stacked line plot with 2θ on the x-axis.
+
+                If reference files are provided, they will be plotted above the
+                measurement using vertical offsets (no overlap), to ease comparison.
+
+                - ``reference_files``: reference patterns as ``.xyd`` (2θ, intensity)
+                - ``reference_cif_files``: reference structures as ``.cif``; a powder
+                    pattern is generated via pymatgen and plotted.
 
         Args:
             archive: The archive containing the data.
@@ -311,50 +400,115 @@ class CaPNormalizer:
             logger: Logger instance.
         """
 
-        with archive.m_context.raw_file(xrd_file, 'rb') as file:
-            try:
-                df = pd.read_csv(
-                    file,
-                    delim_whitespace=True,
-                    header=None,
-                    comment='#',
-                    names=['two_theta', 'intensity'],
-                    engine='python',
-                )
-                logger.info('Successfully parsed XRD data file')
-            except Exception as exc:  # pragma: no cover - guarded read
-                logger.error(f'Failed to read XRD data file: {exc}')
-                raise
+        reference_files = CaPNormalizer._as_list(reference_files)
+        reference_cif_files = CaPNormalizer._as_list(reference_cif_files)
 
-        # Ensure numeric values and drop malformed rows
-        df['two_theta'] = pd.to_numeric(df['two_theta'], errors='coerce')
-        df['intensity'] = pd.to_numeric(df['intensity'], errors='coerce')
-        df = df.dropna(subset=['two_theta', 'intensity'])
+        try:
+            measurement_df = CaPNormalizer._read_xyd_df(archive, xrd_file)
+        except Exception as exc:  # pragma: no cover - guarded read
+            logger.error(f'Failed to read XRD data file {xrd_file}: {exc}')
+            raise
 
-        two_theta = df['two_theta'].to_numpy()
-        intensity = df['intensity'].to_numpy()
+        # Generate references in the same 2θ range as the measurement so the
+        # stacked comparison always overlaps in x.
+        measurement_two_theta_min = float(measurement_df['two_theta'].min())
+        measurement_two_theta_max = float(measurement_df['two_theta'].max())
+        reference_two_theta_range = (
+            measurement_two_theta_min,
+            measurement_two_theta_max,
+        )
 
-        fig = go.Figure()
-        fig.add_trace(
-            go.Scatter(
-                x=two_theta,
-                y=intensity,
-                mode='lines',
-                name='XRD pattern',
+        reference_dfs = CaPNormalizer._collect_reference_dfs(
+            archive,
+            logger,
+            reference_files,
+            reference_cif_files,
+            two_theta_range=reference_two_theta_range,
+        )
+
+        # Build stacked plot: measurement at the bottom, references above.
+        datasets = [(xrd_file, measurement_df)] + reference_dfs
+
+        # Filter out empty datasets to avoid blank subplots.
+        non_empty_datasets: list[tuple[str, pd.DataFrame]] = []
+        for path, df_local in datasets:
+            if not df_local.empty:
+                non_empty_datasets.append((path, df_local))
+        if not non_empty_datasets:
+            non_empty_datasets = [(xrd_file, measurement_df)]
+
+        subplot_titles = [
+            os.path.splitext(os.path.basename(path))[0]
+            for path, _ in non_empty_datasets
+        ]
+
+        fig = make_subplots(
+            rows=len(non_empty_datasets),
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.06,
+            subplot_titles=subplot_titles,
+        )
+
+        # Plot normalized intensities so measurement and reference are comparable.
+        global_min, global_max = 0.0, 1.05
+
+        x_min = None
+        x_max = None
+        for _, df_local in non_empty_datasets:
+            if df_local.empty:
+                continue
+            min_val = float(df_local['two_theta'].min())
+            max_val = float(df_local['two_theta'].max())
+            x_min = min_val if x_min is None else min(x_min, min_val)
+            x_max = max_val if x_max is None else max(x_max, max_val)
+
+        for row_idx, (path, df_local) in enumerate(non_empty_datasets, start=1):
+            two_theta = df_local['two_theta'].to_numpy()
+            intensity = df_local['intensity'].to_numpy()
+            intensity_max = float(pd.Series(intensity).max()) if intensity.size else 0.0
+            intensity_plot = (
+                intensity / intensity_max
+                if intensity_max and intensity_max > 0
+                else intensity
             )
-        )
-        fig.update_layout(
-            title='XRD Pattern',
-            xaxis=dict(title='2θ (degrees)'),
-            yaxis=dict(title='Intensity (a.u.)'),
-        )
+            trace_name = os.path.splitext(os.path.basename(path))[0]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=two_theta,
+                    y=intensity_plot,
+                    mode='lines',
+                    name=trace_name,
+                ),
+                row=row_idx,
+                col=1,
+            )
+            fig.update_yaxes(
+                title_text='Intensity (a.u.)',
+                range=[global_min, global_max],
+                row=row_idx,
+                col=1,
+            )
+
+        fig.update_xaxes(title_text='2θ (degrees)', row=len(non_empty_datasets), col=1)
+        if x_min is not None and x_max is not None:
+            fig.update_xaxes(range=[x_min, x_max])
+        fig.update_layout(title='XRD Pattern', showlegend=False)
 
         figure_json = fig.to_plotly_json()
         figure_json['config'] = {'staticPlot': True}
 
+        # Return measurement arrays for downstream use, plus optional reference info.
+        two_theta_out = measurement_df['two_theta'].to_numpy()
+        intensity_out = measurement_df['intensity'].to_numpy()
+
         return {
-            'two_theta': two_theta,
-            'intensity': intensity,
+            'two_theta': two_theta_out,
+            'intensity': intensity_out,
+            'reference_files': [p for p, _ in reference_dfs],
+            'reference_xyd_files': reference_files,
+            'reference_cif_files': reference_cif_files,
             'figure': PlotlyFigure(
                 label='XRD Pattern',
                 index=0,

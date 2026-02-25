@@ -1,3 +1,10 @@
+from .xrd_from_cif import XRDPattern, xrd_pattern_from_cif_bytes
+
+__all__ = [
+    'XRDPattern',
+    'xrd_pattern_from_cif_bytes',
+]
+
 from nomad.config.models.plugins import ParserEntryPoint
 from pydantic import Field
 

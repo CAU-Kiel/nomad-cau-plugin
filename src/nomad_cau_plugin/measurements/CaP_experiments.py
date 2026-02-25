@@ -195,6 +195,29 @@ class Recipe(ProcessStep, ArchiveSection):
         super().normalize(archive, logger)
 
 
+class SetupImage(ElnBaseSection, ArchiveSection):
+    """Metadata for documenting experimental setup photos uploaded elsewhere."""
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'name',
+                    'caption',
+                ]
+            }
+        },
+    )
+    caption = Quantity(
+        type=str,
+        description=(
+            'Caption/notes for the setup photo '
+            '(upload/view the image via the entry description)'
+        ),
+        a_eln={'component': 'StringEditQuantity'},
+    )
+
+
 class CaP_experiments(PlotSection, EntryData, ArchiveSection):
     """
     Class for MRO004 Calcium Phosphate experiments.
@@ -203,6 +226,7 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
     m_def = Section()
     chemicals = SubSection(section_def=Chemical, repeats=True)
     steps = SubSection(section_def=Recipe, repeats=True)
+    setup_images = SubSection(section_def=SetupImage, repeats=True)
     data_file = Quantity(
         type=str,
         a_browser={'adaptor': 'RawFileAdaptor'},
@@ -222,6 +246,16 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
     xrd_file = Quantity(
         type=str,
         description='XRD data file in .xyd format',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    xrd_reference_cif_files = Quantity(
+        type=str,
+        shape=['*'],
+        description=(
+            'Optional reference crystal structures in .cif format '
+            '(stacked in plot)'
+        ),
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
     )
@@ -292,7 +326,10 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
         #Process XRD file
         if self.xrd_file:
             xrd_result = CaPNormalizer.process_xrd_file(
-                archive, self.xrd_file, logger
+                archive,
+                self.xrd_file,
+                logger,
+                reference_cif_files=(self.xrd_reference_cif_files or None),
             )
             self.figures.append(xrd_result['figure'])
 
