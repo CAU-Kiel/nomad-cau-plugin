@@ -1,12 +1,14 @@
 import os
 import tempfile
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objs as go
 from nomad.datamodel.metainfo.plot import PlotlyFigure
 from nomad.units import ureg
 from plotly.subplots import make_subplots
 
+from nomad_cau_plugin.parsers.luminescence_csv import luminescence_from_csv_bytes
 from nomad_cau_plugin.parsers.pdf_extract import extract_tables_from_report
 from nomad_cau_plugin.parsers.xrd_from_cif import xrd_pattern_from_cif_bytes
 
@@ -23,6 +25,81 @@ class CaPNormalizer:
     Normalizer for MRO004 measurement data.
     Handles CSV data processing and PDF report extraction.
     """
+
+    DEFAULT_XRD_ALPHA_ANGSTROM = 1.5406
+
+    @staticmethod
+    def process_luminescence_data(archive, data_file, logger):
+        """Parse luminescence CSV and build a 3D time/wavelength/intensity plot."""
+        try:
+            with archive.m_context.raw_file(data_file, 'rb') as file:
+                parsed = luminescence_from_csv_bytes(file.read())
+        except Exception as exc:  # pragma: no cover - guarded parsing
+            logger.error(f'Failed to parse luminescence data file {data_file}: {exc}')
+            raise
+
+        time_seconds = parsed.time_seconds
+        wavelength_nm = parsed.wavelength_nm
+        intensity_matrix = parsed.intensity_matrix
+
+        z_raw = np.asarray(intensity_matrix, dtype=float)
+        x_raw = np.asarray(time_seconds, dtype=float)
+        y_raw = np.asarray(wavelength_nm, dtype=float)
+
+        # One line per timestamp: y=wavelength, z=intensity, x=fixed timestamp.
+        fig = go.Figure()
+        for col_idx, t_val in enumerate(x_raw):
+            fig.add_trace(
+                go.Scatter3d(
+                    x=np.full(y_raw.shape, t_val),
+                    y=y_raw,
+                    z=z_raw[:, col_idx],
+                    mode='lines',
+                    showlegend=False,
+                    line=dict(color='rgba(31, 119, 180, 0.30)', width=2),
+                    hovertemplate=(
+                        'time=%{x:.1f} s<br>'
+                        'wavelength=%{y:.2f} nm<br>'
+                        'intensity=%{z:.2f}<extra></extra>'
+                    ),
+                )
+            )
+
+        fig.update_layout(
+            title='Luminescence 3D Map',
+            scene=dict(
+                xaxis_title='Measurement time (s)',
+                yaxis_title='Wavelength (nm)',
+                zaxis_title='Intensity',
+                aspectmode='manual',
+                aspectratio=dict(x=1.4, y=1.0, z=0.7),
+                camera=dict(eye=dict(x=1.6, y=1.4, z=0.9)),
+                xaxis=dict(nticks=10),
+                yaxis=dict(nticks=10),
+                zaxis=dict(nticks=8),
+            ),
+            margin=dict(l=20, r=20, t=50, b=20),
+        )
+
+        figure_json = fig.to_plotly_json()
+        # 3D traces require WebGL; keep interaction enabled for reliable display.
+        figure_json['config'] = {'staticPlot': False}
+
+        return {
+            'measurement_start_time': parsed.measurement_start,
+            'measurement_start_label': parsed.measurement_start.isoformat(
+                sep=' ', timespec='seconds'
+            ),
+            'time_seconds': time_seconds,
+            'wavelength_nm': wavelength_nm,
+            'intensity_matrix': intensity_matrix,
+            'figure': PlotlyFigure(
+                label='Luminescence 3D Map',
+                index=0,
+                figure=figure_json,
+                open=True,
+            ),
+        }
 
     @staticmethod
     def process_csv_data(archive, data_file, logger):
@@ -330,11 +407,19 @@ class CaPNormalizer:
 
     @staticmethod
     def _read_cif_as_pattern_df(
-        archive, path: str, *, two_theta_range: tuple[float, float] | None = None
+        archive,
+        path: str,
+        *,
+        two_theta_range: tuple[float, float] | None = None,
+        wavelength: float | None = None,
     ) -> pd.DataFrame:
         with archive.m_context.raw_file(path, 'rb') as file:
             cif_bytes = file.read()
-        pattern = xrd_pattern_from_cif_bytes(cif_bytes, two_theta_range=two_theta_range)
+        pattern = xrd_pattern_from_cif_bytes(
+            cif_bytes,
+            two_theta_range=two_theta_range,
+            wavelength=wavelength,
+        )
         return pd.DataFrame(
             {'two_theta': pattern.two_theta, 'intensity': pattern.intensity}
         )
@@ -343,28 +428,23 @@ class CaPNormalizer:
     def _collect_reference_dfs(
         archive,
         logger,
-        reference_files: list[str],
         reference_cif_files: list[str],
         *,
         two_theta_range: tuple[float, float] | None = None,
+        wavelength: float | None = None,
     ) -> list[tuple[str, pd.DataFrame]]:
-        reference_dfs: list[tuple[str, pd.DataFrame]] = []
-
-        for ref_file in reference_files:
-            try:
-                reference_dfs.append(
-                    (ref_file, CaPNormalizer._read_xyd_df(archive, ref_file))
-                )
-            except Exception as exc:
-                logger.warning(f'Failed to read reference XRD file {ref_file}: {exc}')
+        reference_cif_dfs: list[tuple[str, pd.DataFrame]] = []
 
         for cif_file in reference_cif_files:
             try:
-                reference_dfs.append(
+                reference_cif_dfs.append(
                     (
                         cif_file,
                         CaPNormalizer._read_cif_as_pattern_df(
-                            archive, cif_file, two_theta_range=two_theta_range
+                            archive,
+                            cif_file,
+                            two_theta_range=two_theta_range,
+                            wavelength=wavelength,
                         ),
                     )
                 )
@@ -373,26 +453,62 @@ class CaPNormalizer:
                     f'Failed to generate XRD pattern from CIF {cif_file}: {exc}'
                 )
 
-        return reference_dfs
+        return reference_cif_dfs
+
+    @staticmethod
+    def _to_local_maxima(df_local: pd.DataFrame) -> pd.DataFrame:
+        """Return local maxima points for stick plotting."""
+        if df_local.empty:
+            return df_local
+
+        ordered = df_local.sort_values('two_theta').reset_index(drop=True)
+        min_points_for_interior_peaks = 2
+        if len(ordered) <= min_points_for_interior_peaks:
+            return ordered[ordered['intensity'] > 0]
+
+        intensity = ordered['intensity']
+        prev_vals = intensity.shift(1)
+        next_vals = intensity.shift(-1)
+
+        is_peak = (intensity >= prev_vals) & (intensity > next_vals)
+        first_peak = (intensity.index == 0) & (intensity > next_vals)
+        last_peak = (intensity.index == len(ordered) - 1) & (intensity > prev_vals)
+        mask = (is_peak | first_peak | last_peak) & (intensity > 0)
+
+        return ordered.loc[mask, ['two_theta', 'intensity']]
+
+    @staticmethod
+    def _sticks_from_points(df_local: pd.DataFrame) -> tuple[list[float], list[float]]:
+        """Convert points to vertical-stick scatter coordinates."""
+        x_sticks: list[float] = []
+        y_sticks: list[float] = []
+        for _, row in df_local.iterrows():
+            x_val = float(row['two_theta'])
+            y_val = float(row['intensity'])
+            x_sticks.extend([x_val, x_val, None])
+            y_sticks.extend([0.0, y_val, None])
+        return x_sticks, y_sticks
 
     @staticmethod
     def normalize_xrd_data(
         archive,
         xrd_file,
         logger,
-        reference_files=None,
         reference_cif_files=None,
+        xrd_alpha=None,
     ):
         """
                 Parse an XRD ``.xyd`` text file with two columns (2θ, intensity)
-                and create a stacked line plot with 2θ on the x-axis.
+                and create a single overlaid comparison plot with 2θ on x-axis.
 
-                If reference files are provided, they will be plotted above the
-                measurement using vertical offsets (no overlap), to ease comparison.
+                - Measurement is drawn as a line.
+                - CIF references are drawn as local-maxima sticks (mass-spectrum
+                    style) to emphasize peak positions.
 
-                - ``reference_files``: reference patterns as ``.xyd`` (2θ, intensity)
                 - ``reference_cif_files``: reference structures as ``.cif``; a powder
                     pattern is generated via pymatgen and plotted.
+                - ``xrd_alpha``: optional wavelength (Angstrom) used for CIF pattern
+                    computation; falls back to default Cu Kα.
 
         Args:
             archive: The archive containing the data.
@@ -400,8 +516,12 @@ class CaPNormalizer:
             logger: Logger instance.
         """
 
-        reference_files = CaPNormalizer._as_list(reference_files)
         reference_cif_files = CaPNormalizer._as_list(reference_cif_files)
+        xrd_alpha_value = (
+            float(xrd_alpha)
+            if xrd_alpha is not None
+            else CaPNormalizer.DEFAULT_XRD_ALPHA_ANGSTROM
+        )
 
         try:
             measurement_df = CaPNormalizer._read_xyd_df(archive, xrd_file)
@@ -418,83 +538,89 @@ class CaPNormalizer:
             measurement_two_theta_max,
         )
 
-        reference_dfs = CaPNormalizer._collect_reference_dfs(
+        reference_cif_dfs = CaPNormalizer._collect_reference_dfs(
             archive,
             logger,
-            reference_files,
             reference_cif_files,
             two_theta_range=reference_two_theta_range,
+            wavelength=xrd_alpha_value,
         )
 
-        # Build stacked plot: measurement at the bottom, references above.
-        datasets = [(xrd_file, measurement_df)] + reference_dfs
+        fig = go.Figure()
 
-        # Filter out empty datasets to avoid blank subplots.
-        non_empty_datasets: list[tuple[str, pd.DataFrame]] = []
-        for path, df_local in datasets:
-            if not df_local.empty:
-                non_empty_datasets.append((path, df_local))
-        if not non_empty_datasets:
-            non_empty_datasets = [(xrd_file, measurement_df)]
+        # Normalize measurement for direct visual peak-position comparison.
+        meas_intensity = measurement_df['intensity'].to_numpy()
+        meas_max = (
+            float(pd.Series(meas_intensity).max()) if meas_intensity.size else 0.0
+        )
+        meas_plot = (
+            meas_intensity / meas_max if meas_max and meas_max > 0 else meas_intensity
+        )
+        measurement_name = os.path.splitext(os.path.basename(xrd_file))[0]
+        fig.add_trace(
+            go.Scatter(
+                x=measurement_df['two_theta'].to_numpy(),
+                y=meas_plot,
+                mode='lines',
+                name=measurement_name,
+                line=dict(color='#1f77b4', width=1.8),
+            )
+        )
 
-        subplot_titles = [
-            os.path.splitext(os.path.basename(path))[0]
-            for path, _ in non_empty_datasets
+        # CIF references are rendered as local-maximum sticks.
+        cif_colors = [
+            '#d62728',
+            '#2ca02c',
+            '#ff7f0e',
+            '#9467bd',
+            '#8c564b',
+            '#e377c2',
+            '#17becf',
+            '#bcbd22',
         ]
-
-        fig = make_subplots(
-            rows=len(non_empty_datasets),
-            cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.06,
-            subplot_titles=subplot_titles,
-        )
-
-        # Plot normalized intensities so measurement and reference are comparable.
-        global_min, global_max = 0.0, 1.05
-
-        x_min = None
-        x_max = None
-        for _, df_local in non_empty_datasets:
+        for idx, (cif_file, df_local) in enumerate(reference_cif_dfs):
             if df_local.empty:
                 continue
-            min_val = float(df_local['two_theta'].min())
-            max_val = float(df_local['two_theta'].max())
-            x_min = min_val if x_min is None else min(x_min, min_val)
-            x_max = max_val if x_max is None else max(x_max, max_val)
 
-        for row_idx, (path, df_local) in enumerate(non_empty_datasets, start=1):
-            two_theta = df_local['two_theta'].to_numpy()
-            intensity = df_local['intensity'].to_numpy()
-            intensity_max = float(pd.Series(intensity).max()) if intensity.size else 0.0
-            intensity_plot = (
-                intensity / intensity_max
-                if intensity_max and intensity_max > 0
-                else intensity
-            )
-            trace_name = os.path.splitext(os.path.basename(path))[0]
+            maxima_df = CaPNormalizer._to_local_maxima(df_local)
+            if maxima_df.empty:
+                continue
 
+            max_intensity = float(maxima_df['intensity'].max())
+            if max_intensity > 0:
+                maxima_df = maxima_df.assign(
+                    intensity=maxima_df['intensity'] / max_intensity
+                )
+
+            x_sticks, y_sticks = CaPNormalizer._sticks_from_points(maxima_df)
+            trace_name = os.path.splitext(os.path.basename(cif_file))[0]
+            color = cif_colors[idx % len(cif_colors)]
             fig.add_trace(
                 go.Scatter(
-                    x=two_theta,
-                    y=intensity_plot,
+                    x=x_sticks,
+                    y=y_sticks,
                     mode='lines',
                     name=trace_name,
-                ),
-                row=row_idx,
-                col=1,
-            )
-            fig.update_yaxes(
-                title_text='Intensity (a.u.)',
-                range=[global_min, global_max],
-                row=row_idx,
-                col=1,
+                    line=dict(color=color, width=1.8),
+                )
             )
 
-        fig.update_xaxes(title_text='2θ (degrees)', row=len(non_empty_datasets), col=1)
-        if x_min is not None and x_max is not None:
-            fig.update_xaxes(range=[x_min, x_max])
-        fig.update_layout(title='XRD Pattern', showlegend=False)
+        fig.update_layout(
+            title='XRD Pattern',
+            xaxis_title='2θ (degrees)',
+            yaxis_title='Normalized intensity (a.u.)',
+            yaxis=dict(range=[0.0, 1.05]),
+            showlegend=True,
+            legend=dict(
+                x=0.99,
+                y=0.99,
+                xanchor='right',
+                yanchor='top',
+                bgcolor='rgba(255,255,255,0.75)',
+                bordercolor='rgba(0,0,0,0.15)',
+                borderwidth=1,
+            ),
+        )
 
         figure_json = fig.to_plotly_json()
         figure_json['config'] = {'staticPlot': True}
@@ -506,9 +632,10 @@ class CaPNormalizer:
         return {
             'two_theta': two_theta_out,
             'intensity': intensity_out,
-            'reference_files': [p for p, _ in reference_dfs],
-            'reference_xyd_files': reference_files,
+            'reference_files': [p for p, _ in reference_cif_dfs],
+            'reference_xyd_files': [],
             'reference_cif_files': reference_cif_files,
+            'xrd_alpha': xrd_alpha_value,
             'figure': PlotlyFigure(
                 label='XRD Pattern',
                 index=0,

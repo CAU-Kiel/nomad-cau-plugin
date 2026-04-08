@@ -218,44 +218,35 @@ class SetupImage(ElnBaseSection, ArchiveSection):
     )
 
 
-class CaP_experiments(PlotSection, EntryData, ArchiveSection):
-    """
-    Class for MRO004 Calcium Phosphate experiments.
-    """
+class ReactorMeasurement(ElnBaseSection, ArchiveSection):
+    """Reactor/process monitoring data upload and derived quantities."""
 
-    m_def = Section()
-    chemicals = SubSection(section_def=Chemical, repeats=True)
-    steps = SubSection(section_def=Recipe, repeats=True)
-    setup_images = SubSection(section_def=SetupImage, repeats=True)
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'name',
+                    'data_file',
+                    'report_file',
+                    'process_time',
+                    'CalciumNitrate_Complex',
+                    'Conductivity',
+                    'pH',
+                    'Temperature',
+                ]
+            }
+        }
+    )
+
     data_file = Quantity(
         type=str,
+        description='Reactor/process data file (CSV)',
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
     )
     report_file = Quantity(
         type=str,
         description='PDF report file containing recipe and chemistry information',
-        a_browser={'adaptor': 'RawFileAdaptor'},
-        a_eln={'component': 'FileEditQuantity'},
-    )
-    data_file = Quantity(
-        type=str,
-        a_browser={'adaptor': 'RawFileAdaptor'},
-        a_eln={'component': 'FileEditQuantity'},
-    )
-    xrd_file = Quantity(
-        type=str,
-        description='XRD data file in .xyd format',
-        a_browser={'adaptor': 'RawFileAdaptor'},
-        a_eln={'component': 'FileEditQuantity'},
-    )
-    xrd_reference_cif_files = Quantity(
-        type=str,
-        shape=['*'],
-        description=(
-            'Optional reference crystal structures in .cif format '
-            '(stacked in plot)'
-        ),
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
     )
@@ -267,7 +258,7 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
     CalciumNitrate_Complex = Quantity(
         type=np.float64,
         shape=['*'],
-        unit='milliliter',  # display attribute
+        unit='milliliter',
     )
     Conductivity = Quantity(
         type=np.float64,
@@ -279,16 +270,155 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
         shape=['*'],
         unit='dimensionless',
     )
-    Stirring_Speed = Quantity(
-        type=np.float64,
-        shape=['*'],
-        unit='rpm',
-    )
     Temperature = Quantity(
         type=np.float64,
         shape=['*'],
         unit='celsius',
     )
+
+
+class XRDMeasurement(ElnBaseSection, ArchiveSection):
+    """XRD upload section with optional CIF references."""
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'name',
+                    'xrd_file',
+                    'xrd_alpha',
+                    'xrd_reference_cif_files',
+                    'two_theta',
+                    'intensity',
+                ]
+            }
+        }
+    )
+
+    xrd_file = Quantity(
+        type=str,
+        description='XRD data file in .xyd format',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    xrd_alpha = Quantity(
+        type=np.float64,
+        unit='angstrom',
+        description=(
+            'Optional alpha/wavelength (Angstrom) used for CIF-based XRD '
+            'recomputation. Leave empty to use the default 1.5406 Angstrom '
+            '(Cu Kα).'
+        ),
+        a_eln={
+            'component': 'NumberEditQuantity',
+            'defaultDisplayUnit': 'angstrom',
+            'props': {'placeholder': '1.5406'},
+        },
+    )
+    xrd_reference_cif_files = Quantity(
+        type=str,
+        shape=['*'],
+        description='Optional reference crystal structures in .cif format',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    two_theta = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='degree',
+    )
+    intensity = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='dimensionless',
+    )
+
+
+class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
+    """Luminescence section with matrix CSV upload and 3D plot outputs."""
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'name',
+                    'data_file',
+                    'measurement_start_time',
+                    'measurement_start_label',
+                    'time_seconds',
+                    'wavelength_nm',
+                    'intensity_matrix',
+                ]
+            }
+        }
+    )
+
+    data_file = Quantity(
+        type=str,
+        description=(
+            'Luminescence matrix CSV. Row 1 contains timestamps in columns 2..N, '
+            'rows 2..5 are ignored, data starts at row 6.'
+        ),
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    measurement_start_time = Quantity(
+        type=Datetime,
+        description=(
+            'Absolute start timestamp parsed from the first measurement column.'
+        ),
+        a_eln={'component': 'TimeEditQuantity'},
+    )
+    measurement_start_label = Quantity(
+        type=str,
+        description='Display label for measurement start (date and time).',
+        a_eln={'component': 'StringEditQuantity'},
+    )
+    time_seconds = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='seconds',
+        description='Measurement time axis normalized to seconds from start.',
+    )
+    wavelength_nm = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='nanometer',
+        description='Wavelength vector from first column starting at row 6.',
+    )
+    intensity_matrix = Quantity(
+        type=np.float64,
+        shape=['*', '*'],
+        description='Intensity matrix with axes [wavelength, time].',
+    )
+
+
+class CaP_experiments(PlotSection, EntryData, ArchiveSection):
+    """
+    Class for MRO004 Calcium Phosphate experiments.
+    """
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'reactor',
+                    'xrd',
+                    'luminescence',
+                    'chemicals',
+                    'steps',
+                    'setup_images',
+                ]
+            }
+        }
+    )
+
+    reactor = SubSection(section_def=ReactorMeasurement)
+    xrd = SubSection(section_def=XRDMeasurement)
+    luminescence = SubSection(section_def=LuminescenceMeasurement)
+    chemicals = SubSection(section_def=Chemical, repeats=True)
+    steps = SubSection(section_def=Recipe, repeats=True)
+    setup_images = SubSection(section_def=SetupImage, repeats=True)
 
     def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
         """
@@ -301,37 +431,58 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
         """
         super().normalize(archive, logger)
 
-        # Process CSV data file
-        if self.data_file:
+        # Process reactor CSV data file
+        if self.reactor and self.reactor.data_file:
             data_result = CaPNormalizer.process_csv_data(
-                archive, self.data_file, logger
+                archive, self.reactor.data_file, logger
             )
 
             # Set the processed data
-            self.process_time = data_result['process_time']
-            self.CalciumNitrate_Complex = data_result['calcium_nitrate_complex']
-            self.Conductivity = data_result['conductivity']
-            self.pH = data_result['ph']
-            self.Temperature = data_result['temperature']
+            self.reactor.process_time = data_result['process_time']
+            self.reactor.CalciumNitrate_Complex = data_result['calcium_nitrate_complex']
+            self.reactor.Conductivity = data_result['conductivity']
+            self.reactor.pH = data_result['ph']
+            self.reactor.Temperature = data_result['temperature']
             self.figures.append(data_result['figure'])
 
         # Process PDF report file
-        if self.report_file and not self.chemicals:
+        if self.reactor and self.reactor.report_file and not self.chemicals:
             chemicals, steps = CaPNormalizer.process_pdf_report(
-                archive, self.report_file, logger
+                archive, self.reactor.report_file, logger
             )
             self.chemicals = chemicals
             self.steps = steps
 
-        #Process XRD file
-        if self.xrd_file:
+        # Process XRD file
+        if self.xrd and self.xrd.xrd_file:
             xrd_result = CaPNormalizer.process_xrd_file(
                 archive,
-                self.xrd_file,
+                self.xrd.xrd_file,
                 logger,
-                reference_cif_files=(self.xrd_reference_cif_files or None),
+                reference_cif_files=(self.xrd.xrd_reference_cif_files or None),
+                xrd_alpha=self.xrd.xrd_alpha,
             )
+            self.xrd.two_theta = xrd_result['two_theta']
+            self.xrd.intensity = xrd_result['intensity']
             self.figures.append(xrd_result['figure'])
+
+        # Process luminescence CSV file
+        if self.luminescence and self.luminescence.data_file:
+            lum_result = CaPNormalizer.process_luminescence_data(
+                archive,
+                self.luminescence.data_file,
+                logger,
+            )
+            self.luminescence.measurement_start_time = lum_result[
+                'measurement_start_time'
+            ]
+            self.luminescence.measurement_start_label = lum_result[
+                'measurement_start_label'
+            ]
+            self.luminescence.time_seconds = lum_result['time_seconds']
+            self.luminescence.wavelength_nm = lum_result['wavelength_nm']
+            self.luminescence.intensity_matrix = lum_result['intensity_matrix']
+            self.figures.append(lum_result['figure'])
 
 
 m_package.__init_metainfo__()

@@ -12,7 +12,7 @@ class XRDPattern:
 def xrd_pattern_from_cif_bytes(
     cif_bytes: bytes,
     *,
-    wavelength: str | None = None,
+    wavelength: str | float | None = None,
     two_theta_range: tuple[float, float] | None = None,
 ) -> XRDPattern:
     """Compute an XRD powder pattern from a CIF file.
@@ -22,8 +22,8 @@ def xrd_pattern_from_cif_bytes(
 
     Args:
         cif_bytes: Raw CIF file content.
-        wavelength: Optional pymatgen wavelength identifier. If ``None``,
-            pymatgen defaults are used (typically Cu Kα).
+        wavelength: Optional pymatgen wavelength (in Angstrom) or identifier.
+            If ``None``, pymatgen defaults are used (typically Cu Kα).
 
     Returns:
         XRDPattern: (two_theta, intensity)

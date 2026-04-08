@@ -1,8 +1,11 @@
 from .xrd_from_cif import XRDPattern, xrd_pattern_from_cif_bytes
+from .luminescence_csv import LuminescenceData, luminescence_from_csv_bytes
 
 __all__ = [
     'XRDPattern',
     'xrd_pattern_from_cif_bytes',
+    'LuminescenceData',
+    'luminescence_from_csv_bytes',
 ]
 
 from nomad.config.models.plugins import ParserEntryPoint
