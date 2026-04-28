@@ -1,0 +1,8 @@
+data:
+  m_def: nomad_cau_plugin.schema_packages.schema_package.Michaela
+  name: Michaela
+  description: Starter template entry for later adjustments.
+  external_id: michaela-001
+  xrd:
+    name: XRD measurement
+    xrd_alpha: 1.5406
