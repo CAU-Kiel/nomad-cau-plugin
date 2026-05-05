@@ -313,7 +313,8 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
 
         if self.characterization and self.characterization.xrd_measurements:
             for xrd in self.characterization.xrd_measurements:
-                if xrd and xrd.xrd_file:
+                # Only process XRD files if data hasn't been extracted yet
+                if xrd and xrd.xrd_file and not xrd.two_theta:
                     xrd_result = CaPNormalizer.process_xrd_file(
                         archive, xrd.xrd_file, logger
                     )
