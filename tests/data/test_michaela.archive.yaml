@@ -3,6 +3,9 @@ data:
   name: Michaela
   description: Starter template entry for later adjustments.
   external_id: michaela-001
-  xrd:
-    name: XRD measurement
-    xrd_alpha: 1.5406
+  characterization:
+    name: Characterization
+    description: XRD measurements for the starter entry.
+    xrd_measurements:
+      - name: XRD measurement
+        xrd_alpha: 1.5406

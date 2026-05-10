@@ -1,9 +1,18 @@
-from .xrd_from_cif import XRDPattern, xrd_pattern_from_cif_bytes
+from .xrd_from_cif import (
+    XRDPattern,
+    xrd_pattern_from_cif_bytes,
+    xrd_pattern_from_reference_file_bytes,
+    xrd_pattern_from_vasp_bytes,
+    xrd_pattern_from_xy_bytes,
+)
 from .luminescence_csv import LuminescenceData, luminescence_from_csv_bytes
 
 __all__ = [
     'XRDPattern',
     'xrd_pattern_from_cif_bytes',
+    'xrd_pattern_from_xy_bytes',
+    'xrd_pattern_from_vasp_bytes',
+    'xrd_pattern_from_reference_file_bytes',
     'LuminescenceData',
     'luminescence_from_csv_bytes',
 ]

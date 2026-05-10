@@ -278,7 +278,7 @@ class ReactorMeasurement(ElnBaseSection, ArchiveSection):
 
 
 class XRDMeasurement(ElnBaseSection, ArchiveSection):
-    """XRD upload section with optional CIF references."""
+    """XRD upload section with optional reference files."""
 
     m_def = Section(
         a_eln={
@@ -305,9 +305,9 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
         type=np.float64,
         unit='angstrom',
         description=(
-            'Optional alpha/wavelength (Angstrom) used for CIF-based XRD '
-            'recomputation. Leave empty to use the default 1.5406 Angstrom '
-            '(Cu Kα).'
+            'Optional wavelength (Angstrom) used for q conversion and reference '
+            'pattern recomputation. Leave empty to use the default 1.5406 '
+            'Angstrom (Cu Kα).'
         ),
         a_eln={
             'component': 'NumberEditQuantity',
@@ -318,7 +318,8 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
     xrd_reference_cif_files = Quantity(
         type=str,
         shape=['*'],
-        description='Optional reference crystal structures in .cif format',
+        label='Reference files',
+        description='Optional reference files in .cif, .xy, .xyd, or .vasp format',
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
     )
@@ -459,11 +460,16 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
                 archive,
                 self.xrd.xrd_file,
                 logger,
-                reference_cif_files=(self.xrd.xrd_reference_cif_files or None),
+                reference_files=(self.xrd.xrd_reference_cif_files or None),
                 xrd_alpha=self.xrd.xrd_alpha,
             )
             self.xrd.two_theta = xrd_result['two_theta']
             self.xrd.intensity = xrd_result['intensity']
+            self.figures = [
+                figure
+                for figure in (self.figures or [])
+                if getattr(figure, 'label', None) != 'XRD Pattern'
+            ]
             self.figures.append(xrd_result['figure'])
 
         # Process luminescence CSV file

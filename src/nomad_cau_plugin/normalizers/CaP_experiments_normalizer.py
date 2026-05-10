@@ -10,7 +10,9 @@ from plotly.subplots import make_subplots
 
 from nomad_cau_plugin.parsers.luminescence_csv import luminescence_from_csv_bytes
 from nomad_cau_plugin.parsers.pdf_extract import extract_tables_from_report
-from nomad_cau_plugin.parsers.xrd_from_cif import xrd_pattern_from_cif_bytes
+from nomad_cau_plugin.parsers.xrd_from_cif import (
+    xrd_pattern_from_reference_file_bytes,
+)
 
 from .column_utils import (
     find_calcium_nitrate_column,
@@ -414,9 +416,10 @@ class CaPNormalizer:
         wavelength: float | None = None,
     ) -> pd.DataFrame:
         with archive.m_context.raw_file(path, 'rb') as file:
-            cif_bytes = file.read()
-        pattern = xrd_pattern_from_cif_bytes(
-            cif_bytes,
+            file_bytes = file.read()
+        pattern = xrd_pattern_from_reference_file_bytes(
+            path,
+            file_bytes,
             two_theta_range=two_theta_range,
             wavelength=wavelength,
         )
@@ -425,35 +428,56 @@ class CaPNormalizer:
         )
 
     @staticmethod
+    def _read_reference_pattern_df(
+        archive,
+        logger,
+        reference_file: str,
+        *,
+        two_theta_range: tuple[float, float] | None = None,
+        wavelength: float | None = None,
+    ) -> pd.DataFrame | None:
+        try:
+            return CaPNormalizer._read_cif_as_pattern_df(
+                archive,
+                reference_file,
+                two_theta_range=two_theta_range,
+                wavelength=wavelength,
+            )
+        except Exception as exc:
+            logger.warning(
+                f'Failed to generate XRD pattern from reference file '
+                f'{reference_file}: {exc}'
+            )
+            return None
+
+    @staticmethod
     def _collect_reference_dfs(
         archive,
         logger,
-        reference_cif_files: list[str],
+        reference_files: list[str],
         *,
         two_theta_range: tuple[float, float] | None = None,
         wavelength: float | None = None,
     ) -> list[tuple[str, pd.DataFrame]]:
-        reference_cif_dfs: list[tuple[str, pd.DataFrame]] = []
+        reference_dfs: list[tuple[str, pd.DataFrame]] = []
 
-        for cif_file in reference_cif_files:
-            try:
-                reference_cif_dfs.append(
-                    (
-                        cif_file,
-                        CaPNormalizer._read_cif_as_pattern_df(
-                            archive,
-                            cif_file,
-                            two_theta_range=two_theta_range,
-                            wavelength=wavelength,
-                        ),
-                    )
-                )
-            except Exception as exc:
-                logger.warning(
-                    f'Failed to generate XRD pattern from CIF {cif_file}: {exc}'
-                )
+        for reference_file in reference_files:
+            pattern_df = CaPNormalizer._read_reference_pattern_df(
+                archive,
+                logger,
+                reference_file,
+                two_theta_range=two_theta_range,
+                wavelength=wavelength,
+            )
+            if pattern_df is not None:
+                reference_dfs.append((reference_file, pattern_df))
 
-        return reference_cif_dfs
+        return reference_dfs
+
+    @staticmethod
+    def _two_theta_to_q(two_theta: np.ndarray, wavelength: float) -> np.ndarray:
+        theta_radians = np.deg2rad(np.asarray(two_theta, dtype=float) / 2.0)
+        return 4.0 * np.pi * np.sin(theta_radians) / float(wavelength)
 
     @staticmethod
     def _to_local_maxima(df_local: pd.DataFrame) -> pd.DataFrame:
@@ -494,21 +518,24 @@ class CaPNormalizer:
         archive,
         xrd_file,
         logger,
+        reference_files=None,
         reference_cif_files=None,
         xrd_alpha=None,
     ):
         """
                 Parse an XRD ``.xyd`` text file with two columns (2θ, intensity)
-                and create a single overlaid comparison plot with 2θ on x-axis.
+                and create a single overlaid comparison plot with q on x-axis.
 
                 - Measurement is drawn as a line.
                 - CIF references are drawn as local-maxima sticks (mass-spectrum
                     style) to emphasize peak positions.
 
-                - ``reference_cif_files``: reference structures as ``.cif``; a powder
-                    pattern is generated via pymatgen and plotted.
-                - ``xrd_alpha``: optional wavelength (Angstrom) used for CIF pattern
-                    computation; falls back to default Cu Kα.
+                - ``reference_files``: reference structures or reference patterns as
+                    ``.cif``, ``.xy``, ``.xyd``, or ``.vasp``; a powder pattern is
+                    generated or read and plotted.
+                - ``xrd_alpha``: optional wavelength (Angstrom) used for q conversion
+                    and structure-based reference pattern computation; falls back to
+                    default Cu Kα.
 
         Args:
             archive: The archive containing the data.
@@ -516,7 +543,9 @@ class CaPNormalizer:
             logger: Logger instance.
         """
 
-        reference_cif_files = CaPNormalizer._as_list(reference_cif_files)
+        reference_files = CaPNormalizer._as_list(
+            reference_files or reference_cif_files
+        )
         xrd_alpha_value = (
             float(xrd_alpha)
             if xrd_alpha is not None
@@ -541,7 +570,7 @@ class CaPNormalizer:
         reference_cif_dfs = CaPNormalizer._collect_reference_dfs(
             archive,
             logger,
-            reference_cif_files,
+            reference_files,
             two_theta_range=reference_two_theta_range,
             wavelength=xrd_alpha_value,
         )
@@ -557,9 +586,13 @@ class CaPNormalizer:
             meas_intensity / meas_max if meas_max and meas_max > 0 else meas_intensity
         )
         measurement_name = os.path.splitext(os.path.basename(xrd_file))[0]
+        measurement_q = CaPNormalizer._two_theta_to_q(
+            measurement_df['two_theta'].to_numpy(),
+            xrd_alpha_value,
+        )
         fig.add_trace(
             go.Scatter(
-                x=measurement_df['two_theta'].to_numpy(),
+                x=measurement_q,
                 y=meas_plot,
                 mode='lines',
                 name=measurement_name,
@@ -592,7 +625,15 @@ class CaPNormalizer:
                     intensity=maxima_df['intensity'] / max_intensity
                 )
 
-            x_sticks, y_sticks = CaPNormalizer._sticks_from_points(maxima_df)
+            q_values = CaPNormalizer._two_theta_to_q(
+                maxima_df['two_theta'].to_numpy(),
+                xrd_alpha_value,
+            )
+            x_sticks = []
+            y_sticks = []
+            for x_val, y_val in zip(q_values, maxima_df['intensity'].to_numpy()):
+                x_sticks.extend([float(x_val), float(x_val), None])
+                y_sticks.extend([0.0, float(y_val), None])
             trace_name = os.path.splitext(os.path.basename(cif_file))[0]
             color = cif_colors[idx % len(cif_colors)]
             fig.add_trace(
@@ -607,7 +648,7 @@ class CaPNormalizer:
 
         fig.update_layout(
             title='XRD Pattern',
-            xaxis_title='2θ (degrees)',
+            xaxis_title='q (angstrom^-1)',
             yaxis_title='Normalized intensity (a.u.)',
             yaxis=dict(range=[0.0, 1.05]),
             showlegend=True,
@@ -633,8 +674,21 @@ class CaPNormalizer:
             'two_theta': two_theta_out,
             'intensity': intensity_out,
             'reference_files': [p for p, _ in reference_cif_dfs],
-            'reference_xyd_files': [],
-            'reference_cif_files': reference_cif_files,
+            'reference_xyd_files': [
+                p
+                for p, _ in reference_cif_dfs
+                if os.path.splitext(p)[1].lower() in {'.xy', '.xyd'}
+            ],
+            'reference_cif_files': [
+                p
+                for p, _ in reference_cif_dfs
+                if os.path.splitext(p)[1].lower() == '.cif'
+            ],
+            'reference_vasp_files': [
+                p
+                for p, _ in reference_cif_dfs
+                if os.path.splitext(p)[1].lower() == '.vasp'
+            ],
             'xrd_alpha': xrd_alpha_value,
             'figure': PlotlyFigure(
                 label='XRD Pattern',

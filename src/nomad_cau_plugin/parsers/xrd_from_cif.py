@@ -1,12 +1,48 @@
 from __future__ import annotations
 
+import io
+import os
 from dataclasses import dataclass
+
+import numpy as np
+import pandas as pd
 
 
 @dataclass(frozen=True)
 class XRDPattern:
     two_theta: list[float]
     intensity: list[float]
+
+
+def _decode_text_bytes(file_bytes: bytes) -> str:
+    try:
+        return file_bytes.decode('utf-8')
+    except UnicodeDecodeError:
+        return file_bytes.decode('latin-1')
+
+
+def _pattern_from_dataframe(df_local: pd.DataFrame) -> XRDPattern:
+    return XRDPattern(
+        two_theta=[float(x) for x in df_local['two_theta']],
+        intensity=[float(y) for y in df_local['intensity']],
+    )
+
+
+def _pattern_from_structure(
+    structure,
+    *,
+    wavelength: str | float | None = None,
+    two_theta_range: tuple[float, float] | None = None,
+) -> XRDPattern:
+    from pymatgen.analysis.diffraction.xrd import XRDCalculator
+
+    xrd = XRDCalculator(wavelength=wavelength) if wavelength else XRDCalculator()
+    pattern = xrd.get_pattern(structure, two_theta_range=two_theta_range or (0, 90))
+
+    return XRDPattern(
+        two_theta=[float(x) for x in pattern.x],
+        intensity=[float(y) for y in pattern.y],
+    )
 
 
 def xrd_pattern_from_cif_bytes(
@@ -34,18 +70,13 @@ def xrd_pattern_from_cif_bytes(
     """
 
     try:
-        from pymatgen.analysis.diffraction.xrd import XRDCalculator
         from pymatgen.io.cif import CifParser
     except Exception as exc:  # pragma: no cover
         raise ImportError(
             'Missing dependency for CIF→XRD conversion. Install `pymatgen`.'
         ) from exc
 
-    # CIF files are text; try UTF-8 first, then latin-1.
-    try:
-        cif_text = cif_bytes.decode('utf-8')
-    except UnicodeDecodeError:
-        cif_text = cif_bytes.decode('latin-1')
+    cif_text = _decode_text_bytes(cif_bytes)
 
     # Many CIFs (incl. CCDC exports) may contain duplicated sites / occupancies
     # that exceed 1.0; using CifParser with a relaxed tolerance is more robust.
@@ -59,10 +90,79 @@ def xrd_pattern_from_cif_bytes(
         raise ValueError('Invalid CIF file with no structures.')
     structure = structures[0]
 
-    xrd = XRDCalculator(wavelength=wavelength) if wavelength else XRDCalculator()
-    pattern = xrd.get_pattern(structure, two_theta_range=two_theta_range or (0, 90))
-
-    return XRDPattern(
-        two_theta=[float(x) for x in pattern.x],
-        intensity=[float(y) for y in pattern.y],
+    return _pattern_from_structure(
+        structure,
+        wavelength=wavelength,
+        two_theta_range=two_theta_range,
     )
+
+
+def xrd_pattern_from_xy_bytes(xy_bytes: bytes) -> XRDPattern:
+    """Parse a two-column .xy/.xyd file as (two_theta, intensity)."""
+
+    xy_text = _decode_text_bytes(xy_bytes)
+    df_local = pd.read_csv(
+        io.StringIO(xy_text),
+        sep=r'[\s,]+',
+        comment='#',
+        header=None,
+        names=['two_theta', 'intensity'],
+        usecols=[0, 1],
+        engine='python',
+    )
+    df_local['two_theta'] = pd.to_numeric(df_local['two_theta'], errors='coerce')
+    df_local['intensity'] = pd.to_numeric(df_local['intensity'], errors='coerce')
+    df_local = df_local.dropna(subset=['two_theta', 'intensity'])
+    return _pattern_from_dataframe(df_local)
+
+
+def xrd_pattern_from_vasp_bytes(
+    vasp_bytes: bytes,
+    *,
+    wavelength: str | float | None = None,
+    two_theta_range: tuple[float, float] | None = None,
+) -> XRDPattern:
+    """Compute an XRD powder pattern from a VASP structure file."""
+
+    try:
+        from pymatgen.io.vasp import Poscar
+    except Exception as exc:  # pragma: no cover
+        raise ImportError(
+            'Missing dependency for VASP→XRD conversion. Install `pymatgen`.'
+        ) from exc
+
+    vasp_text = _decode_text_bytes(vasp_bytes)
+    structure = Poscar.from_str(vasp_text).structure
+    return _pattern_from_structure(
+        structure,
+        wavelength=wavelength,
+        two_theta_range=two_theta_range,
+    )
+
+
+def xrd_pattern_from_reference_file_bytes(
+    file_path: str,
+    file_bytes: bytes,
+    *,
+    wavelength: str | float | None = None,
+    two_theta_range: tuple[float, float] | None = None,
+) -> XRDPattern:
+    """Dispatch reference file parsing based on file extension."""
+
+    suffix = os.path.splitext(file_path)[1].lower()
+    if suffix in {'.xy', '.xyd'}:
+        return xrd_pattern_from_xy_bytes(file_bytes)
+    if suffix == '.vasp':
+        return xrd_pattern_from_vasp_bytes(
+            file_bytes,
+            wavelength=wavelength,
+            two_theta_range=two_theta_range,
+        )
+    if suffix == '.cif':
+        return xrd_pattern_from_cif_bytes(
+            file_bytes,
+            wavelength=wavelength,
+            two_theta_range=two_theta_range,
+        )
+
+    raise ValueError(f'Unsupported reference file format: {suffix or file_path}')

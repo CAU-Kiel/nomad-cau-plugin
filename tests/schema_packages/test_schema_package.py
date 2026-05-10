@@ -28,4 +28,6 @@ def test_michaela_schema_package():
 
     assert entry_archive.data.name == 'Michaela'
     assert entry_archive.data.external_id == 'michaela-001'
-    assert entry_archive.data.xrd is not None
+    assert entry_archive.data.characterization is not None
+    assert entry_archive.data.characterization.xrd_measurements is not None
+    assert len(entry_archive.data.characterization.xrd_measurements) == 1

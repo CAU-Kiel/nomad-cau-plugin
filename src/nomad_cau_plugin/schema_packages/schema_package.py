@@ -313,13 +313,17 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
 
         if self.characterization and self.characterization.xrd_measurements:
             for xrd in self.characterization.xrd_measurements:
-                # Only process XRD files if data hasn't been extracted yet
-                if xrd and xrd.xrd_file and not xrd.two_theta:
+                if xrd and xrd.xrd_file:
                     xrd_result = CaPNormalizer.process_xrd_file(
                         archive, xrd.xrd_file, logger
                     )
                     xrd.two_theta = xrd_result['two_theta']
                     xrd.intensity = xrd_result['intensity']
+                    self.figures = [
+                        figure
+                        for figure in (self.figures or [])
+                        if getattr(figure, 'label', None) != 'XRD Pattern'
+                    ]
                     self.figures.append(xrd_result['figure'])
 
 
