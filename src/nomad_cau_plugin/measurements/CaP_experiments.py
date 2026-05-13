@@ -335,6 +335,42 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
     )
 
 
+class IRMeasurement(ElnBaseSection, ArchiveSection):
+    """IR spectroscopy measurement section with .dpt file upload."""
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'name',
+                    'ir_file',
+                    'wavenumber',
+                    'transmittance',
+                ]
+            }
+        }
+    )
+
+    ir_file = Quantity(
+        type=str,
+        description='IR spectroscopy data file in .dpt format',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    wavenumber = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='1/cm',
+        description='Wavenumber axis in cm⁻¹',
+    )
+    transmittance = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='dimensionless',
+        description='Transmittance values (typically 0-1 range)',
+    )
+
+
 class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
     """Luminescence section with matrix CSV upload and 3D plot outputs."""
 
@@ -405,6 +441,7 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
                 'order': [
                     'reactor',
                     'xrd',
+                    'ir',
                     'luminescence',
                     'chemicals',
                     'steps',
@@ -416,6 +453,7 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
 
     reactor = SubSection(section_def=ReactorMeasurement)
     xrd = SubSection(section_def=XRDMeasurement)
+    ir = SubSection(section_def=IRMeasurement)
     luminescence = SubSection(section_def=LuminescenceMeasurement)
     chemicals = SubSection(section_def=Chemical, repeats=True)
     steps = SubSection(section_def=Recipe, repeats=True)
@@ -489,6 +527,22 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
             self.luminescence.wavelength_nm = lum_result['wavelength_nm']
             self.luminescence.intensity_matrix = lum_result['intensity_matrix']
             self.figures.append(lum_result['figure'])
+
+        # Process IR file
+        if self.ir and self.ir.ir_file:
+            ir_result = CaPNormalizer.process_ir_file(
+                archive,
+                self.ir.ir_file,
+                logger,
+            )
+            self.ir.wavenumber = ir_result['wavenumber']
+            self.ir.transmittance = ir_result['transmittance']
+            self.figures = [
+                figure
+                for figure in (self.figures or [])
+                if getattr(figure, 'label', None) != 'IR Spectrum'
+            ]
+            self.figures.append(ir_result['figure'])
 
 
 m_package.__init_metainfo__()

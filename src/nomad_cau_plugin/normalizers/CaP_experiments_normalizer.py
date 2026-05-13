@@ -10,6 +10,7 @@ from plotly.subplots import make_subplots
 
 from nomad_cau_plugin.parsers.luminescence_csv import luminescence_from_csv_bytes
 from nomad_cau_plugin.parsers.pdf_extract import extract_tables_from_report
+from nomad_cau_plugin.parsers.ir_from_dpt import ir_spectrum_from_dpt_bytes
 from nomad_cau_plugin.parsers.xrd_from_cif import (
     xrd_pattern_from_reference_file_bytes,
 )
@@ -697,6 +698,77 @@ class CaPNormalizer:
                 open=True,
             ),
         }
+
+    @staticmethod
+    def normalize_ir_data(archive, ir_file, logger):
+        """
+        Parse an IR .dpt file and create an IR spectrum plot.
+
+        The .dpt format is a two-column text file with:
+        - Column 1: wavenumber in cm⁻¹
+        - Column 2: transmittance (typically 0-1 range)
+
+        Creates a line plot with wavenumber on x-axis and transmittance on y-axis.
+
+        Args:
+            archive: The archive containing the data.
+            ir_file: Path to the IR .dpt file.
+            logger: Logger instance.
+
+        Returns:
+            dict: Contains 'wavenumber', 'transmittance', and 'figure' (PlotlyFigure).
+        """
+        try:
+            with archive.m_context.raw_file(ir_file, 'rb') as file:
+                ir_bytes = file.read()
+            spectrum = ir_spectrum_from_dpt_bytes(ir_bytes)
+        except Exception as exc:
+            logger.error(f'Failed to read IR data file {ir_file}: {exc}')
+            raise
+
+        wavenumber_array = np.array(spectrum.wavenumber, dtype=float)
+        transmittance_array = np.array(spectrum.transmittance, dtype=float)
+
+        fig = go.Figure()
+
+        measurement_name = os.path.splitext(os.path.basename(ir_file))[0]
+        fig.add_trace(
+            go.Scatter(
+                x=wavenumber_array,
+                y=transmittance_array,
+                mode='lines',
+                name=measurement_name,
+                line=dict(color='#1f77b4', width=1.5),
+                fill='tozeroy',
+                fillcolor='rgba(31, 119, 184, 0.2)',
+            )
+        )
+
+        fig.update_layout(
+            title='IR Spectrum',
+            xaxis_title='Wavenumber (cm⁻¹)',
+            yaxis_title='Transmittance (a.u.)',
+            xaxis=dict(autorange='reversed'),
+            showlegend=True,
+            hovermode='x unified',
+        )
+
+        figure_json = fig.to_plotly_json()
+        figure_json['config'] = {'staticPlot': True}
+
+        return {
+            'wavenumber': wavenumber_array,
+            'transmittance': transmittance_array,
+            'figure': PlotlyFigure(
+                label='IR Spectrum',
+                index=0,
+                figure=figure_json,
+                open=True,
+            ),
+        }
+
+    # Alias for the measurement class naming
+    process_ir_file = normalize_ir_data
 
     # Alias for the measurement class naming
     process_xrd_file = normalize_xrd_data

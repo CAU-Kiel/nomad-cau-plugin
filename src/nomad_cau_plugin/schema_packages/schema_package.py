@@ -20,7 +20,11 @@ from nomad.datamodel.metainfo.eln import ElnBaseSection
 from nomad.datamodel.metainfo.plot import PlotSection
 from nomad.metainfo import Datetime, MEnum, Quantity, SchemaPackage, Section, SubSection
 
-from nomad_cau_plugin.measurements.CaP_experiments import Chemical, XRDMeasurement
+from nomad_cau_plugin.measurements.CaP_experiments import (
+    Chemical,
+    IRMeasurement,
+    XRDMeasurement,
+)
 from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import CaPNormalizer
 
 configuration = config.get_plugin_entry_point(
@@ -261,9 +265,9 @@ class Characterization(ArchiveSection):
         description='Dynamic Light Scattering measurements (placeholder).',
     )
     ir_measurements = SubSection(
-        section_def=XRDMeasurement,
+        section_def=IRMeasurement,
         repeats=True,
-        description='Infrared spectroscopy measurements (placeholder).',
+        description='Infrared spectroscopy measurements.',
     )
     raman_measurements = SubSection(
         section_def=XRDMeasurement,
@@ -325,6 +329,21 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
                         if getattr(figure, 'label', None) != 'XRD Pattern'
                     ]
                     self.figures.append(xrd_result['figure'])
+
+        if self.characterization and self.characterization.ir_measurements:
+            for ir in self.characterization.ir_measurements:
+                if ir and ir.ir_file:
+                    ir_result = CaPNormalizer.process_ir_file(
+                        archive, ir.ir_file, logger
+                    )
+                    ir.wavenumber = ir_result['wavenumber']
+                    ir.transmittance = ir_result['transmittance']
+                    self.figures = [
+                        figure
+                        for figure in (self.figures or [])
+                        if getattr(figure, 'label', None) != 'IR Spectrum'
+                    ]
+                    self.figures.append(ir_result['figure'])
 
 
 m_package.__init_metainfo__()

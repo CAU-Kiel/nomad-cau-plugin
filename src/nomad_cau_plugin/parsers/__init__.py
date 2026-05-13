@@ -1,3 +1,4 @@
+from .ir_from_dpt import IRSpectrum, ir_spectrum_from_dpt_bytes
 from .xrd_from_cif import (
     XRDPattern,
     xrd_pattern_from_cif_bytes,
@@ -13,6 +14,8 @@ __all__ = [
     'xrd_pattern_from_xy_bytes',
     'xrd_pattern_from_vasp_bytes',
     'xrd_pattern_from_reference_file_bytes',
+    'IRSpectrum',
+    'ir_spectrum_from_dpt_bytes',
     'LuminescenceData',
     'luminescence_from_csv_bytes',
 ]
