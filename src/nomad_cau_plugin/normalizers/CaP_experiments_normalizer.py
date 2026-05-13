@@ -130,7 +130,7 @@ class CaPNormalizer:
                         file, skiprows=[1], decimal=',', sep=r'\t|;', encoding='latin-1'
                     )
                     logger.info('Successfully read CSV file with latin-1 encoding')
-                except Exception as e:
+                except Exception as e:  # noqa: PLC0415
                     logger.error(
                         f'Failed to read CSV file with both UTF-8 and latin-1 encodings: {e}'  # noqa: E501
                     )
@@ -377,7 +377,7 @@ class CaPNormalizer:
                     # Clean up temporary file
                     os.unlink(tmp_file_path)
 
-        except Exception as e:
+        except Exception as e:  # noqa: PLC0415
             logger.warning(f'Failed to extract data from PDF report: {e}')
             return [], []
 

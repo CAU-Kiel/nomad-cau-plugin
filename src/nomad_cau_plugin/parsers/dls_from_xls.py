@@ -1,11 +1,8 @@
 """Parser for Dynamic Light Scattering (DLS) distribution data."""
 
-import io
-import re
 from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 
 
 @dataclass
@@ -37,6 +34,10 @@ def _decode_text_bytes(file_bytes: bytes) -> str:
             return file_bytes.decode('latin-1')
 
 
+# Minimum number of fields expected in cumulant data line
+MIN_CUMULANT_FIELDS = 5
+
+
 def _parse_cumulant_section(lines: list[str]) -> dict:
     """
     Extract cumulant diameter data from the file.
@@ -55,7 +56,7 @@ def _parse_cumulant_section(lines: list[str]) -> dict:
                 data_line = lines[j].strip()
                 # Split on any whitespace (tabs or spaces) and normalize decimals
                 values = [v.strip().replace(',', '.') for v in data_line.split()]
-                if len(values) >= 5:
+                if len(values) >= MIN_CUMULANT_FIELDS:
                     try:
                         return {
                             'cumulant_diameter': float(values[0]),
@@ -73,6 +74,10 @@ def _parse_cumulant_section(lines: list[str]) -> dict:
         'd50': np.nan,
         'd90': np.nan,
     }
+
+
+# Minimum number of fields expected in distribution data line
+MIN_DISTRIBUTION_FIELDS = 3
 
 
 def _parse_distribution_section(
@@ -112,8 +117,8 @@ def _parse_distribution_section(
         return [], [], []
 
     # Parse data rows
-    for line in lines[start_idx:]:
-        line = line.strip()
+    for line_str in lines[start_idx:]:
+        line = line_str.strip()
         if not line or line.startswith('-'):
             continue
         if 'Diameter' in line or 'Cumulant' in line or 'File' in line:
@@ -121,7 +126,7 @@ def _parse_distribution_section(
 
         # Split on any whitespace
         parts = line.split()
-        if len(parts) >= 3:
+        if len(parts) >= MIN_DISTRIBUTION_FIELDS:
             try:
                 # Replace comma with dot for decimal separator (European format)
                 d = float(parts[0].replace(',', '.'))

@@ -5,7 +5,7 @@ from pydantic import Field
 class NewNormalizerEntryPoint(NormalizerEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
-    def load(self):
+    def load(self):  # noqa: PLC0415
         from nomad_cau_plugin.normalizers.normalizer import NewNormalizer
 
         return NewNormalizer(**self.model_dump())

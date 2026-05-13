@@ -1,4 +1,6 @@
+from .dls_from_xls import DLSDistribution, dls_distribution_from_xls_bytes
 from .ir_from_dpt import IRSpectrum, ir_spectrum_from_dpt_bytes
+from .luminescence_csv import LuminescenceData, luminescence_from_csv_bytes
 from .xrd_from_cif import (
     XRDPattern,
     xrd_pattern_from_cif_bytes,
@@ -6,8 +8,6 @@ from .xrd_from_cif import (
     xrd_pattern_from_vasp_bytes,
     xrd_pattern_from_xy_bytes,
 )
-from .luminescence_csv import LuminescenceData, luminescence_from_csv_bytes
-from .dls_from_xls import DLSDistribution, dls_distribution_from_xls_bytes
 
 __all__ = [
     'XRDPattern',
@@ -30,7 +30,7 @@ from pydantic import Field
 class NewParserEntryPoint(ParserEntryPoint):
     parameter: int = Field(0, description='Custom configuration parameter')
 
-    def load(self):
+    def load(self):  # noqa: PLC0415
         from nomad_cau_plugin.parsers.parser import NewParser
 
         return NewParser(**self.model_dump())

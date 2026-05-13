@@ -175,7 +175,7 @@ class MRO005Normalizer:
 
         steps = []
         # Import Recipe class dynamically to avoid circular import
-        from nomad_cau_plugin.measurements.MRO005 import Recipe
+        from nomad_cau_plugin.measurements.MRO005 import Recipe  # noqa: PLC0415
 
         for i, row in df.iterrows():
             step = Recipe()
