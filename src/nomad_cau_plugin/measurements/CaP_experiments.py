@@ -334,7 +334,10 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
         unit='dimensionless',
     )
 
-
+cd /home/lankovas/nomad-distro-dev/packages/nomad-cau-plugin
+git push origin main
+cd /home/lankovas/nomad-distro-dev
+git push origin main
 class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
     """Luminescence section with matrix CSV upload and 3D plot outputs."""
 
