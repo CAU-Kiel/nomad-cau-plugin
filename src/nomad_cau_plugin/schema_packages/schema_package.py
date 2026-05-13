@@ -24,7 +24,7 @@ from nomad_cau_plugin.measurements.CaP_experiments import (
     Chemical,
     XRDMeasurement,
 )
-from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import CaPNormalizer
+from nomad_cau_plugin.normalizers.Michaela_experiments_normalizer import MichaelaNormalizer
 
 configuration = config.get_plugin_entry_point(
     'nomad_cau_plugin.schema_packages:schema_package_entry_point'
@@ -516,8 +516,12 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
         if self.characterization and self.characterization.xrd_measurements:
             for xrd in self.characterization.xrd_measurements:
                 if xrd and xrd.xrd_file:
-                    xrd_result = CaPNormalizer.process_xrd_file(
-                        archive, xrd.xrd_file, logger
+                    xrd_result = MichaelaNormalizer.process_xrd_file(
+                        archive,
+                        xrd.xrd_file,
+                        logger,
+                        reference_files=xrd.xrd_reference_cif_files,
+                        xrd_alpha=getattr(xrd, 'xrd_alpha', None),
                     )
                     xrd.two_theta = xrd_result['two_theta']
                     xrd.intensity = xrd_result['intensity']
@@ -531,7 +535,7 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
         if self.characterization and self.characterization.ir_measurements:
             for ir in self.characterization.ir_measurements:
                 if ir and ir.ir_file:
-                    ir_result = CaPNormalizer.process_ir_file(
+                    ir_result = MichaelaNormalizer.process_ir_file(
                         archive, ir.ir_file, logger
                     )
                     ir.wavenumber = ir_result['wavenumber']
@@ -546,7 +550,7 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
         if self.characterization and self.characterization.dls_measurements:
             for dls in self.characterization.dls_measurements:
                 if dls:
-                    dls_result = CaPNormalizer.process_dls_files(
+                    dls_result = MichaelaNormalizer.process_dls_files(
                         archive, dls, logger
                     )
                     if dls_result:

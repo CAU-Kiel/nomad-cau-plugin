@@ -8,10 +8,10 @@ from nomad.datamodel.metainfo.plot import PlotlyFigure
 from nomad.units import ureg
 from plotly.subplots import make_subplots
 
+from nomad_cau_plugin.parsers.dls_from_xls import dls_distribution_from_xls_bytes
+from nomad_cau_plugin.parsers.ir_from_dpt import ir_spectrum_from_dpt_bytes
 from nomad_cau_plugin.parsers.luminescence_csv import luminescence_from_csv_bytes
 from nomad_cau_plugin.parsers.pdf_extract import extract_tables_from_report
-from nomad_cau_plugin.parsers.ir_from_dpt import ir_spectrum_from_dpt_bytes
-from nomad_cau_plugin.parsers.dls_from_xls import dls_distribution_from_xls_bytes
 from nomad_cau_plugin.parsers.xrd_from_cif import (
     xrd_pattern_from_reference_file_bytes,
 )
@@ -516,7 +516,7 @@ class CaPNormalizer:
         return x_sticks, y_sticks
 
     @staticmethod
-    def normalize_xrd_data(
+    def normalize_xrd_data(  # noqa: PLR0913
         archive,
         xrd_file,
         logger,
@@ -770,7 +770,7 @@ class CaPNormalizer:
 
 
     @staticmethod
-    def normalize_dls_files(archive, dls_measurement, logger):
+    def normalize_dls_files(archive, dls_measurement, logger):  # noqa: PLR0915
         """
         Parse DLS distribution files and create visualizations.
 

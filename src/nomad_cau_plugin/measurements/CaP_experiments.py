@@ -334,10 +334,7 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
         unit='dimensionless',
     )
 
-cd /home/lankovas/nomad-distro-dev/packages/nomad-cau-plugin
-git push origin main
-cd /home/lankovas/nomad-distro-dev
-git push origin main
+
 class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
     """Luminescence section with matrix CSV upload and 3D plot outputs."""
 
@@ -398,7 +395,7 @@ class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
 
 
 class DLSMeasurement(ElnBaseSection, ArchiveSection):
-    """Dynamic Light Scattering (DLS) measurement with intensity, volume, and number distributions."""
+    """Dynamic Light Scattering measurement with three distribution types."""
 
     m_def = Section(
         a_eln={
