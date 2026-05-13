@@ -33,7 +33,7 @@ def _pattern_from_structure(
     wavelength: str | float | None = None,
     two_theta_range: tuple[float, float] | None = None,
 ) -> XRDPattern:
-    from pymatgen.analysis.diffraction.xrd import XRDCalculator
+    from pymatgen.analysis.diffraction.xrd import XRDCalculator  # noqa: PLC0415, I001
 
     xrd = XRDCalculator(wavelength=wavelength) if wavelength else XRDCalculator()
     pattern = xrd.get_pattern(structure, two_theta_range=two_theta_range or (0, 90))
@@ -69,7 +69,7 @@ def xrd_pattern_from_cif_bytes(
     """
 
     try:
-        from pymatgen.io.cif import CifParser
+        from pymatgen.io.cif import CifParser  # noqa: PLC0415, I001
     except Exception as exc:  # pragma: no cover
         raise ImportError(
             'Missing dependency for CIF→XRD conversion. Install `pymatgen`.'

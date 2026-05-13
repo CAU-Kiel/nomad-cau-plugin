@@ -248,7 +248,7 @@ class CaPNormalizer:
     @staticmethod
     def _process_chemistry_data(chemistry_df):
         """Extract chemical data from chemistry dataframe."""
-        from nomad_cau_plugin.measurements.CaP_experiments import Chemical
+        from nomad_cau_plugin.measurements.CaP_experiments import Chemical  # noqa: PLC0415, I001
 
         chemicals = []
         if chemistry_df.empty:
@@ -293,7 +293,7 @@ class CaPNormalizer:
     @staticmethod
     def _process_recipe_data(recipe_df):
         """Extract recipe steps from recipe dataframe."""
-        from nomad_cau_plugin.measurements.CaP_experiments import Recipe
+        from nomad_cau_plugin.measurements.CaP_experiments import Recipe  # noqa: PLC0415, I001
 
         TIME_PARTS_COUNT = 3
         steps = []
