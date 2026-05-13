@@ -22,7 +22,6 @@ from nomad.metainfo import Datetime, MEnum, Quantity, SchemaPackage, Section, Su
 
 from nomad_cau_plugin.measurements.CaP_experiments import (
     Chemical,
-    IRMeasurement,
     XRDMeasurement,
 )
 from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import CaPNormalizer
@@ -221,6 +220,205 @@ class Refinement(ArchiveSection):
     steps = SubSection(section_def=RefinementStep, repeats=True)
 
 
+class IRMeasurement(ElnBaseSection, ArchiveSection):
+    """IR spectroscopy measurement section with .dpt file upload."""
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'name',
+                    'ir_file',
+                    'wavenumber',
+                    'transmittance',
+                ]
+            }
+        }
+    )
+
+    ir_file = Quantity(
+        type=str,
+        description='IR spectroscopy data file in .dpt format',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    wavenumber = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='1/cm',
+        description='Wavenumber axis in cm⁻¹',
+    )
+    transmittance = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='dimensionless',
+        description='Transmittance values (typically 0-1 range)',
+    )
+
+
+class DLSMeasurement(ElnBaseSection, ArchiveSection):
+    """Dynamic Light Scattering (DLS) measurement with intensity, volume, and number distributions."""
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'name',
+                    'intensity_distribution_file',
+                    'volume_distribution_file',
+                    'number_distribution_file',
+                    'intensity_diameter',
+                    'intensity_differential',
+                    'intensity_cumulative',
+                    'volume_diameter',
+                    'volume_differential',
+                    'volume_cumulative',
+                    'number_diameter',
+                    'number_differential',
+                    'number_cumulative',
+                    'intensity_cumulant_diameter',
+                    'intensity_polydispersity_index',
+                    'intensity_d10',
+                    'intensity_d50',
+                    'intensity_d90',
+                    'volume_cumulant_diameter',
+                    'volume_d50',
+                    'number_cumulant_diameter',
+                    'number_d50',
+                ]
+            }
+        }
+    )
+
+    intensity_distribution_file = Quantity(
+        type=str,
+        description='Intensity distribution .xls file',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    volume_distribution_file = Quantity(
+        type=str,
+        description='Volume distribution .xls file',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    number_distribution_file = Quantity(
+        type=str,
+        description='Number distribution .xls file',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+
+    # Intensity distribution data
+    intensity_diameter = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='nanometer',
+        description='Diameter axis for intensity distribution',
+    )
+    intensity_differential = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='percent',
+        description='Differential intensity distribution (%)',
+    )
+    intensity_cumulative = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='percent',
+        description='Cumulative intensity distribution (%)',
+    )
+
+    # Volume distribution data
+    volume_diameter = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='nanometer',
+        description='Diameter axis for volume distribution',
+    )
+    volume_differential = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='percent',
+        description='Differential volume distribution (%)',
+    )
+    volume_cumulative = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='percent',
+        description='Cumulative volume distribution (%)',
+    )
+
+    # Number distribution data
+    number_diameter = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='nanometer',
+        description='Diameter axis for number distribution',
+    )
+    number_differential = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='percent',
+        description='Differential number distribution (%)',
+    )
+    number_cumulative = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='percent',
+        description='Cumulative number distribution (%)',
+    )
+
+    # Cumulant diameter and percentile data
+    intensity_cumulant_diameter = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='Cumulant diameter (mean) from intensity distribution',
+    )
+    intensity_polydispersity_index = Quantity(
+        type=np.float64,
+        unit='dimensionless',
+        description='Polydispersity index from intensity distribution',
+    )
+    intensity_d10 = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='D10 percentile (10%) from intensity distribution',
+    )
+    intensity_d50 = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='D50 percentile (50%, median) from intensity distribution',
+    )
+    intensity_d90 = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='D90 percentile (90%) from intensity distribution',
+    )
+
+    volume_cumulant_diameter = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='Cumulant diameter (mean) from volume distribution',
+    )
+    volume_d50 = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='D50 percentile (50%, median) from volume distribution',
+    )
+
+    number_cumulant_diameter = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='Cumulant diameter (mean) from number distribution',
+    )
+    number_d50 = Quantity(
+        type=np.float64,
+        unit='nanometer',
+        description='D50 percentile (50%, median) from number distribution',
+    )
+
+
 class Characterization(ArchiveSection):
     m_def = Section(
         label='Characterization',
@@ -260,9 +458,9 @@ class Characterization(ArchiveSection):
         description='UV-VIS spectroscopy measurements (placeholder).',
     )
     dls_measurements = SubSection(
-        section_def=XRDMeasurement,
+        section_def=DLSMeasurement,
         repeats=True,
-        description='Dynamic Light Scattering measurements (placeholder).',
+        description='Dynamic Light Scattering measurements.',
     )
     ir_measurements = SubSection(
         section_def=IRMeasurement,
@@ -344,6 +542,62 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
                         if getattr(figure, 'label', None) != 'IR Spectrum'
                     ]
                     self.figures.append(ir_result['figure'])
+
+        if self.characterization and self.characterization.dls_measurements:
+            for dls in self.characterization.dls_measurements:
+                if dls:
+                    dls_result = CaPNormalizer.process_dls_files(
+                        archive, dls, logger
+                    )
+                    if dls_result:
+                        # Set intensity distribution data
+                        dls.intensity_diameter = dls_result['intensity_diameter']
+                        dls.intensity_differential = dls_result[
+                            'intensity_differential'
+                        ]
+                        dls.intensity_cumulative = dls_result['intensity_cumulative']
+                        dls.intensity_cumulant_diameter = dls_result[
+                            'intensity_cumulant_diameter'
+                        ]
+                        dls.intensity_polydispersity_index = dls_result[
+                            'intensity_polydispersity_index'
+                        ]
+                        dls.intensity_d10 = dls_result['intensity_d10']
+                        dls.intensity_d50 = dls_result['intensity_d50']
+                        dls.intensity_d90 = dls_result['intensity_d90']
+
+                        # Set volume distribution data
+                        dls.volume_diameter = dls_result['volume_diameter']
+                        dls.volume_differential = dls_result['volume_differential']
+                        dls.volume_cumulative = dls_result['volume_cumulative']
+                        dls.volume_cumulant_diameter = dls_result[
+                            'volume_cumulant_diameter'
+                        ]
+                        dls.volume_d50 = dls_result['volume_d50']
+
+                        # Set number distribution data
+                        dls.number_diameter = dls_result['number_diameter']
+                        dls.number_differential = dls_result['number_differential']
+                        dls.number_cumulative = dls_result['number_cumulative']
+                        dls.number_cumulant_diameter = dls_result[
+                            'number_cumulant_diameter'
+                        ]
+                        dls.number_d50 = dls_result['number_d50']
+
+                        # Add figures, removing old DLS figures first
+                        self.figures = [
+                            figure
+                            for figure in (self.figures or [])
+                            if not (
+                                getattr(figure, 'label', None)
+                                in [
+                                    'DLS Intensity Distribution',
+                                    'DLS Volume Distribution',
+                                    'DLS Number Distribution',
+                                ]
+                            )
+                        ]
+                        self.figures.extend(dls_result.get('figures', []))
 
 
 m_package.__init_metainfo__()

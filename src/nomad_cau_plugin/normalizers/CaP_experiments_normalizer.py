@@ -11,6 +11,7 @@ from plotly.subplots import make_subplots
 from nomad_cau_plugin.parsers.luminescence_csv import luminescence_from_csv_bytes
 from nomad_cau_plugin.parsers.pdf_extract import extract_tables_from_report
 from nomad_cau_plugin.parsers.ir_from_dpt import ir_spectrum_from_dpt_bytes
+from nomad_cau_plugin.parsers.dls_from_xls import dls_distribution_from_xls_bytes
 from nomad_cau_plugin.parsers.xrd_from_cif import (
     xrd_pattern_from_reference_file_bytes,
 )
@@ -766,6 +767,248 @@ class CaPNormalizer:
                 open=True,
             ),
         }
+
+
+    @staticmethod
+    def normalize_dls_files(archive, dls_measurement, logger):
+        """
+        Parse DLS distribution files and create visualizations.
+
+        Processes intensity, volume, and number distribution files and creates
+        individual Plotly figures for each distribution type.
+
+        Args:
+            archive: The archive containing the data.
+            dls_measurement: The DLSMeasurement section containing file references.
+            logger: Logger instance.
+
+        Returns:
+            dict: Contains parsed data for all three distributions and figures list.
+        """
+        result = {
+            'intensity_diameter': [],
+            'intensity_differential': [],
+            'intensity_cumulative': [],
+            'intensity_cumulant_diameter': np.nan,
+            'intensity_polydispersity_index': np.nan,
+            'intensity_d10': np.nan,
+            'intensity_d50': np.nan,
+            'intensity_d90': np.nan,
+            'volume_diameter': [],
+            'volume_differential': [],
+            'volume_cumulative': [],
+            'volume_cumulant_diameter': np.nan,
+            'volume_d50': np.nan,
+            'number_diameter': [],
+            'number_differential': [],
+            'number_cumulative': [],
+            'number_cumulant_diameter': np.nan,
+            'number_d50': np.nan,
+            'figures': [],
+        }
+
+        # Process intensity distribution
+        if dls_measurement.intensity_distribution_file:
+            try:
+                with archive.m_context.raw_file(
+                    dls_measurement.intensity_distribution_file, 'rb'
+                ) as file:
+                    intensity_dist = dls_distribution_from_xls_bytes(
+                        file.read(), distribution_type='Intensity'
+                    )
+
+                result['intensity_diameter'] = np.array(intensity_dist.diameter)
+                result['intensity_differential'] = np.array(
+                    intensity_dist.differential
+                )
+                result['intensity_cumulative'] = np.array(intensity_dist.cumulative)
+                result['intensity_cumulant_diameter'] = intensity_dist.cumulant_diameter
+                result['intensity_polydispersity_index'] = (
+                    intensity_dist.polydispersity_index
+                )
+                result['intensity_d10'] = intensity_dist.d10
+                result['intensity_d50'] = intensity_dist.d50
+                result['intensity_d90'] = intensity_dist.d90
+
+                # Create intensity distribution figure
+                fig_intensity = go.Figure()
+                fig_intensity.add_trace(
+                    go.Scatter(
+                        x=result['intensity_diameter'],
+                        y=result['intensity_differential'],
+                        mode='lines',
+                        name='Differential',
+                        line=dict(color='#1f77b4', width=2),
+                    )
+                )
+                fig_intensity.add_trace(
+                    go.Scatter(
+                        x=result['intensity_diameter'],
+                        y=result['intensity_cumulative'],
+                        mode='lines',
+                        name='Cumulative',
+                        line=dict(color='#ff7f0e', width=2, dash='dash'),
+                        yaxis='y2',
+                    )
+                )
+                fig_intensity.update_layout(
+                    title='DLS Intensity Distribution',
+                    xaxis_title='Diameter (nm)',
+                    yaxis_title='Differential Intensity (%)',
+                    yaxis2=dict(
+                        title='Cumulative Intensity (%)',
+                        overlaying='y',
+                        side='right',
+                    ),
+                    hovermode='x unified',
+                )
+
+                figure_json = fig_intensity.to_plotly_json()
+                figure_json['config'] = {'staticPlot': True}
+
+                result['figures'].append(
+                    PlotlyFigure(
+                        label='DLS Intensity Distribution',
+                        index=0,
+                        figure=figure_json,
+                        open=True,
+                    )
+                )
+            except Exception as exc:
+                logger.warning(
+                    f'Failed to process intensity distribution: {exc}'
+                )
+
+        # Process volume distribution
+        if dls_measurement.volume_distribution_file:
+            try:
+                with archive.m_context.raw_file(
+                    dls_measurement.volume_distribution_file, 'rb'
+                ) as file:
+                    volume_dist = dls_distribution_from_xls_bytes(
+                        file.read(), distribution_type='Volume'
+                    )
+
+                result['volume_diameter'] = np.array(volume_dist.diameter)
+                result['volume_differential'] = np.array(volume_dist.differential)
+                result['volume_cumulative'] = np.array(volume_dist.cumulative)
+                result['volume_cumulant_diameter'] = volume_dist.cumulant_diameter
+                result['volume_d50'] = volume_dist.d50
+
+                # Create volume distribution figure
+                fig_volume = go.Figure()
+                fig_volume.add_trace(
+                    go.Scatter(
+                        x=result['volume_diameter'],
+                        y=result['volume_differential'],
+                        mode='lines',
+                        name='Differential',
+                        line=dict(color='#2ca02c', width=2),
+                    )
+                )
+                fig_volume.add_trace(
+                    go.Scatter(
+                        x=result['volume_diameter'],
+                        y=result['volume_cumulative'],
+                        mode='lines',
+                        name='Cumulative',
+                        line=dict(color='#d62728', width=2, dash='dash'),
+                        yaxis='y2',
+                    )
+                )
+                fig_volume.update_layout(
+                    title='DLS Volume Distribution',
+                    xaxis_title='Diameter (nm)',
+                    yaxis_title='Differential Volume (%)',
+                    yaxis2=dict(
+                        title='Cumulative Volume (%)',
+                        overlaying='y',
+                        side='right',
+                    ),
+                    hovermode='x unified',
+                )
+
+                figure_json = fig_volume.to_plotly_json()
+                figure_json['config'] = {'staticPlot': True}
+
+                result['figures'].append(
+                    PlotlyFigure(
+                        label='DLS Volume Distribution',
+                        index=1,
+                        figure=figure_json,
+                        open=True,
+                    )
+                )
+            except Exception as exc:
+                logger.warning(f'Failed to process volume distribution: {exc}')
+
+        # Process number distribution
+        if dls_measurement.number_distribution_file:
+            try:
+                with archive.m_context.raw_file(
+                    dls_measurement.number_distribution_file, 'rb'
+                ) as file:
+                    number_dist = dls_distribution_from_xls_bytes(
+                        file.read(), distribution_type='Number'
+                    )
+
+                result['number_diameter'] = np.array(number_dist.diameter)
+                result['number_differential'] = np.array(number_dist.differential)
+                result['number_cumulative'] = np.array(number_dist.cumulative)
+                result['number_cumulant_diameter'] = number_dist.cumulant_diameter
+                result['number_d50'] = number_dist.d50
+
+                # Create number distribution figure
+                fig_number = go.Figure()
+                fig_number.add_trace(
+                    go.Scatter(
+                        x=result['number_diameter'],
+                        y=result['number_differential'],
+                        mode='lines',
+                        name='Differential',
+                        line=dict(color='#9467bd', width=2),
+                    )
+                )
+                fig_number.add_trace(
+                    go.Scatter(
+                        x=result['number_diameter'],
+                        y=result['number_cumulative'],
+                        mode='lines',
+                        name='Cumulative',
+                        line=dict(color='#8c564b', width=2, dash='dash'),
+                        yaxis='y2',
+                    )
+                )
+                fig_number.update_layout(
+                    title='DLS Number Distribution',
+                    xaxis_title='Diameter (nm)',
+                    yaxis_title='Differential Number (%)',
+                    yaxis2=dict(
+                        title='Cumulative Number (%)',
+                        overlaying='y',
+                        side='right',
+                    ),
+                    hovermode='x unified',
+                )
+
+                figure_json = fig_number.to_plotly_json()
+                figure_json['config'] = {'staticPlot': True}
+
+                result['figures'].append(
+                    PlotlyFigure(
+                        label='DLS Number Distribution',
+                        index=2,
+                        figure=figure_json,
+                        open=True,
+                    )
+                )
+            except Exception as exc:
+                logger.warning(f'Failed to process number distribution: {exc}')
+
+        return result
+
+    # Alias for the measurement class naming
+    process_dls_files = normalize_dls_files
 
     # Alias for the measurement class naming
     process_ir_file = normalize_ir_data

@@ -7,6 +7,7 @@ from .xrd_from_cif import (
     xrd_pattern_from_xy_bytes,
 )
 from .luminescence_csv import LuminescenceData, luminescence_from_csv_bytes
+from .dls_from_xls import DLSDistribution, dls_distribution_from_xls_bytes
 
 __all__ = [
     'XRDPattern',
@@ -18,6 +19,8 @@ __all__ = [
     'ir_spectrum_from_dpt_bytes',
     'LuminescenceData',
     'luminescence_from_csv_bytes',
+    'DLSDistribution',
+    'dls_distribution_from_xls_bytes',
 ]
 
 from nomad.config.models.plugins import ParserEntryPoint
