@@ -24,7 +24,9 @@ from nomad_cau_plugin.measurements.CaP_experiments import (
     Chemical,
     XRDMeasurement,
 )
-from nomad_cau_plugin.normalizers.Michaela_experiments_normalizer import MichaelaNormalizer
+from nomad_cau_plugin.normalizers.Michaela_experiments_normalizer import (
+    MichaelaNormalizer,
+)
 
 configuration = config.get_plugin_entry_point(
     'nomad_cau_plugin.schema_packages:schema_package_entry_point'
@@ -257,7 +259,7 @@ class IRMeasurement(ElnBaseSection, ArchiveSection):
 
 
 class DLSMeasurement(ElnBaseSection, ArchiveSection):
-    """Dynamic Light Scattering (DLS) measurement with intensity, volume, and number distributions."""
+    """DLS measurement with intensity, volume, and number distributions."""
 
     m_def = Section(
         a_eln={
@@ -592,14 +594,12 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
                         self.figures = [
                             figure
                             for figure in (self.figures or [])
-                            if not (
-                                getattr(figure, 'label', None)
-                                in [
-                                    'DLS Intensity Distribution',
-                                    'DLS Volume Distribution',
-                                    'DLS Number Distribution',
-                                ]
-                            )
+                            if getattr(figure, 'label', None)
+                            not in [
+                                'DLS Intensity Distribution',
+                                'DLS Volume Distribution',
+                                'DLS Number Distribution',
+                            ]
                         ]
                         self.figures.extend(dls_result.get('figures', []))
 
