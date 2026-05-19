@@ -48,7 +48,7 @@ def test_ir_spectrum_from_dpt_bytes_handles_whitespace():
 2000\t0.90"""
     spectrum = ir_spectrum_from_dpt_bytes(dpt_content)
 
-    assert len(spectrum.wavenumber) == IR_SPECTRUM_LENGTH_2
+    assert len(spectrum.wavenumber) == IR_SPECTRUM_LENGTH_3
     assert spectrum.wavenumber[0] == IR_WAVENUMBER_4000
 
 
