@@ -482,6 +482,36 @@ class CaPNormalizer:
         return 4.0 * np.pi * np.sin(theta_radians) / float(wavelength)
 
     @staticmethod
+    def _parse_xrd_alpha(xrd_alpha) -> float:
+        """Return a wavelength in Angstrom as float from various input types.
+
+        Accepts None, numeric, string, or pint Quantity with units.
+        Falls back to DEFAULT_XRD_ALPHA_ANGSTROM on failure.
+        """
+        if xrd_alpha is None:
+            return CaPNormalizer.DEFAULT_XRD_ALPHA_ANGSTROM
+
+        # Handle pint Quantity-like objects
+        try:
+            if hasattr(xrd_alpha, 'to') and hasattr(xrd_alpha, 'magnitude'):
+                try:
+                    q = xrd_alpha.to('angstrom')
+                    return float(q.magnitude)
+                except Exception:
+                    return float(xrd_alpha.magnitude)
+        except Exception:
+            pass
+
+        # Fallback: try numeric conversion or parse leading numeric from string
+        try:
+            return float(xrd_alpha)
+        except Exception:
+            try:
+                return float(str(xrd_alpha).split()[0])
+            except Exception:
+                return CaPNormalizer.DEFAULT_XRD_ALPHA_ANGSTROM
+
+    @staticmethod
     def _to_local_maxima(df_local: pd.DataFrame) -> pd.DataFrame:
         """Return local maxima points for stick plotting."""
         if df_local.empty:
@@ -548,11 +578,7 @@ class CaPNormalizer:
         reference_files = CaPNormalizer._as_list(
             reference_files or reference_cif_files
         )
-        xrd_alpha_value = (
-            float(xrd_alpha)
-            if xrd_alpha is not None
-            else CaPNormalizer.DEFAULT_XRD_ALPHA_ANGSTROM
-        )
+        xrd_alpha_value = CaPNormalizer._parse_xrd_alpha(xrd_alpha)
 
         try:
             measurement_df = CaPNormalizer._read_xyd_df(archive, xrd_file)
