@@ -457,13 +457,13 @@ class DLSMeasurement(ElnBaseSection, ArchiveSection):
     intensity_differential = Quantity(
         type=np.float64,
         shape=['*'],
-        unit='percent',
+        unit='dimensionless',
         description='Differential intensity distribution (%)',
     )
     intensity_cumulative = Quantity(
         type=np.float64,
         shape=['*'],
-        unit='percent',
+        unit='dimensionless',
         description='Cumulative intensity distribution (%)',
     )
 
@@ -477,13 +477,13 @@ class DLSMeasurement(ElnBaseSection, ArchiveSection):
     volume_differential = Quantity(
         type=np.float64,
         shape=['*'],
-        unit='percent',
+        unit='dimensionless',
         description='Differential volume distribution (%)',
     )
     volume_cumulative = Quantity(
         type=np.float64,
         shape=['*'],
-        unit='percent',
+        unit='dimensionless',
         description='Cumulative volume distribution (%)',
     )
 
@@ -497,13 +497,13 @@ class DLSMeasurement(ElnBaseSection, ArchiveSection):
     number_differential = Quantity(
         type=np.float64,
         shape=['*'],
-        unit='percent',
+        unit='dimensionless',
         description='Differential number distribution (%)',
     )
     number_cumulative = Quantity(
         type=np.float64,
         shape=['*'],
-        unit='percent',
+        unit='dimensionless',
         description='Cumulative number distribution (%)',
     )
 
