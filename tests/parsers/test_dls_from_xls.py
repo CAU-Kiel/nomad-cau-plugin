@@ -1,12 +1,22 @@
 """Tests for DLS distribution data parsing."""
 
-import numpy as np
-import pytest
-
 from nomad_cau_plugin.parsers.dls_from_xls import (
     DLSDistribution,
     dls_distribution_from_xls_bytes,
 )
+
+# Test constants
+DLS_CUMULANT_DIAMETER_206_6 = 206.6
+DLS_POLYDISPERSITY_INDEX_NEG_0_053 = -0.053
+DLS_D10_191_6 = 191.6
+DLS_D50_199_6 = 199.6
+DLS_D90_207_5 = 207.5
+DLS_D10_191_3 = 191.3
+DLS_D50_199_0 = 199.0
+DLS_D10_191_0 = 191.0
+DLS_D50_198_5 = 198.5
+DLS_D90_206_6 = 206.6
+DLS_DIAMETER_COUNT = 4
 
 
 def test_dls_distribution_parses_intensity_type():
@@ -27,15 +37,15 @@ Diameter (nm)   Differential Intensity (%)      Cumulative Intensity(%)
     dist = dls_distribution_from_xls_bytes(dls_content, distribution_type='Intensity')
 
     assert dist.distribution_type == 'Intensity'
-    assert len(dist.diameter) == 4
+    assert len(dist.diameter) == DLS_DIAMETER_COUNT
     assert dist.diameter == [100.0, 150.0, 200.0, 250.0]
     assert dist.differential == [5.0, 20.0, 50.0, 25.0]
     assert dist.cumulative == [5.0, 25.0, 75.0, 100.0]
-    assert dist.cumulant_diameter == 206.6
-    assert dist.polydispersity_index == -0.053
-    assert dist.d10 == 191.6
-    assert dist.d50 == 199.6
-    assert dist.d90 == 207.5
+    assert dist.cumulant_diameter == DLS_CUMULANT_DIAMETER_206_6
+    assert dist.polydispersity_index == DLS_POLYDISPERSITY_INDEX_NEG_0_053
+    assert dist.d10 == DLS_D10_191_6
+    assert dist.d50 == DLS_D50_199_6
+    assert dist.d90 == DLS_D90_207_5
 
 
 def test_dls_distribution_parses_volume_type():
@@ -56,9 +66,9 @@ Diameter (nm)   Differential Volume (%) Cumulative Volume (%)
     dist = dls_distribution_from_xls_bytes(dls_content, distribution_type='Volume')
 
     assert dist.distribution_type == 'Volume'
-    assert dist.cumulant_diameter == 206.6
-    assert dist.d50 == 199.0
-    assert len(dist.diameter) == 4
+    assert dist.cumulant_diameter == DLS_CUMULANT_DIAMETER_206_6
+    assert dist.d50 == DLS_D50_199_0
+    assert len(dist.diameter) == DLS_DIAMETER_COUNT
 
 
 def test_dls_distribution_parses_number_type():
@@ -79,9 +89,9 @@ Diameter (nm)   Differential Number (%) Cumulative Number (%)
     dist = dls_distribution_from_xls_bytes(dls_content, distribution_type='Number')
 
     assert dist.distribution_type == 'Number'
-    assert dist.cumulant_diameter == 206.6
-    assert dist.d50 == 198.5
-    assert dist.d90 == 206.6
+    assert dist.cumulant_diameter == DLS_CUMULANT_DIAMETER_206_6
+    assert dist.d50 == DLS_D50_198_5
+    assert dist.d90 == DLS_D90_206_6
 
 
 def test_dls_distribution_equality():

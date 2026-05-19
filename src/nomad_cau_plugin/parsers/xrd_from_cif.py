@@ -124,7 +124,7 @@ def xrd_pattern_from_vasp_bytes(
     """Compute an XRD powder pattern from a VASP structure file."""
 
     try:
-        from pymatgen.io.vasp import Poscar
+        from pymatgen.io.vasp import Poscar  # noqa: PLC0415
     except Exception as exc:  # pragma: no cover
         raise ImportError(
             'Missing dependency for VASP→XRD conversion. Install `pymatgen`.'
