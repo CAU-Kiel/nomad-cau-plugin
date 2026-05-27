@@ -27,6 +27,20 @@ def _pattern_from_dataframe(df_local: pd.DataFrame) -> XRDPattern:
     )
 
 
+def _filter_dataframe_to_two_theta_range(
+    df_local: pd.DataFrame,
+    two_theta_range: tuple[float, float] | None = None,
+) -> pd.DataFrame:
+    if two_theta_range is None:
+        return df_local
+
+    lower_bound, upper_bound = two_theta_range
+    return df_local[
+        (df_local['two_theta'] >= lower_bound)
+        & (df_local['two_theta'] <= upper_bound)
+    ]
+
+
 def _pattern_from_structure(
     structure,
     *,
@@ -96,7 +110,11 @@ def xrd_pattern_from_cif_bytes(
     )
 
 
-def xrd_pattern_from_xy_bytes(xy_bytes: bytes) -> XRDPattern:
+def xrd_pattern_from_xy_bytes(
+    xy_bytes: bytes,
+    *,
+    two_theta_range: tuple[float, float] | None = None,
+) -> XRDPattern:
     """Parse a two-column .xy/.xyd file as (two_theta, intensity)."""
 
     xy_text = _decode_text_bytes(xy_bytes)
@@ -112,6 +130,7 @@ def xrd_pattern_from_xy_bytes(xy_bytes: bytes) -> XRDPattern:
     df_local['two_theta'] = pd.to_numeric(df_local['two_theta'], errors='coerce')
     df_local['intensity'] = pd.to_numeric(df_local['intensity'], errors='coerce')
     df_local = df_local.dropna(subset=['two_theta', 'intensity'])
+    df_local = _filter_dataframe_to_two_theta_range(df_local, two_theta_range)
     return _pattern_from_dataframe(df_local)
 
 
@@ -150,7 +169,10 @@ def xrd_pattern_from_reference_file_bytes(
 
     suffix = os.path.splitext(file_path)[1].lower()
     if suffix in {'.xy', '.xyd'}:
-        return xrd_pattern_from_xy_bytes(file_bytes)
+        return xrd_pattern_from_xy_bytes(
+            file_bytes,
+            two_theta_range=two_theta_range,
+        )
     if suffix == '.vasp':
         return xrd_pattern_from_vasp_bytes(
             file_bytes,

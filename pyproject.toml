@@ -118,6 +118,7 @@ normalizer_entry_point = "nomad_cau_plugin.normalizers:normalizer_entry_point"
 #measurement_schema = "nomad_cau_plugin.measurements:schema"
 MRO005_schema = "nomad_cau_plugin.measurements:MRO005_schema"
 MRO004_schema = "nomad_cau_plugin.measurements:MRO004_schema"
+UVVis_schema = "nomad_cau_plugin.measurements:UVVis_schema"
 
 example_upload_entry_point = "nomad_cau_plugin.example_uploads:example_upload_entry_point"
 

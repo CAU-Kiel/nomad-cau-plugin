@@ -676,7 +676,7 @@ class CaPNormalizer:
 
         fig.update_layout(
             title='XRD Pattern',
-            xaxis_title='q (angstrom^-1)',
+            xaxis_title='q (Å⁻¹)',
             yaxis_title='Normalized intensity (a.u.)',
             yaxis=dict(range=[0.0, 1.05]),
             showlegend=True,

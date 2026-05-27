@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 import nomad_cau_plugin.parsers.xrd_from_cif as xrd_module
 from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import CaPNormalizer
@@ -25,6 +26,16 @@ def test_xrd_pattern_from_reference_file_bytes_dispatches_by_extension():
         b'10 5\n20 10\n',
     )
     assert xy_pattern.two_theta == [10.0, 20.0]
+
+
+def test_xrd_pattern_from_reference_file_bytes_filters_xy_range():
+    xy_pattern = xrd_pattern_from_reference_file_bytes(
+        'pattern.xyd',
+        b'10 5\n20 10\n30 15\n',
+        two_theta_range=(15.0, 25.0),
+    )
+
+    assert xy_pattern.two_theta == [20.0]
 
 
 def test_xrd_pattern_from_vasp_bytes_returns_pattern():
@@ -57,3 +68,31 @@ def test_q_axis_conversion_uses_wavelength():
 
     assert q_values[0] == 0.0
     assert q_values[1] > Q_AXIS_THRESHOLD_8_8
+
+
+def test_xrd_plot_uses_angstrom_symbol_for_q_axis(monkeypatch):
+    monkeypatch.setattr(
+        CaPNormalizer,
+        '_read_xyd_df',
+        staticmethod(
+            lambda *args, **kwargs: pd.DataFrame(
+                {
+                    'two_theta': [10.0, 20.0],
+                    'intensity': [1.0, 2.0],
+                }
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        CaPNormalizer,
+        '_collect_reference_dfs',
+        staticmethod(lambda *args, **kwargs: []),
+    )
+
+    result = CaPNormalizer.normalize_xrd_data(
+        archive=None,
+        xrd_file='test.xyd',
+        logger=type('Logger', (), {'error': lambda *args, **kwargs: None})(),
+    )
+
+    assert result['figure'].figure['layout']['xaxis']['title']['text'] == 'q (Å⁻¹)'
