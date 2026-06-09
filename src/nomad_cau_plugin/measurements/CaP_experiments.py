@@ -276,6 +276,40 @@ class ReactorMeasurement(ElnBaseSection, ArchiveSection):
         unit='celsius',
     )
 
+class XRDReference(ElnBaseSection, ArchiveSection):
+    """Reference XRD input with per-reference wavelength."""
+
+    m_def = Section(
+        a_eln={
+            'properties': {
+                'order': [
+                    'reference_file',
+                    'reference_alpha',
+                ]
+            }
+        }
+    )
+
+    reference_file = Quantity(
+        type=str,
+        description='Reference file in .cif, .xy, .xyd, or .vasp format.',
+        a_browser={'adaptor': 'RawFileAdaptor'},
+        a_eln={'component': 'FileEditQuantity'},
+    )
+    reference_alpha = Quantity(
+        type=np.float64,
+        unit='angstrom',
+        description=(
+            'Optional wavelength (Angstrom) for this specific reference file. '
+            'Leave empty to use the measurement alpha.'
+        ),
+        a_eln={
+            'component': 'NumberEditQuantity',
+            'defaultDisplayUnit': 'angstrom',
+            'props': {'placeholder': '1.5406'},
+        },
+    )
+
 
 class XRDMeasurement(ElnBaseSection, ArchiveSection):
     """XRD upload section with optional reference files."""
@@ -287,7 +321,8 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
                     'name',
                     'xrd_file',
                     'xrd_alpha',
-                    'xrd_reference_cif_files',
+                    'use_measurement_alpha_for_all_references',
+                    'xrd_references',
                     'two_theta',
                     'intensity',
                 ]
@@ -315,11 +350,27 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
             'props': {'placeholder': '1.5406'},
         },
     )
+    use_measurement_alpha_for_all_references = Quantity(
+        type=bool,
+        default=False,
+        description=(
+            'If enabled, copies the measurement alpha to all reference files.'
+        ),
+        a_eln={'component': 'BoolEditQuantity'},
+    )
+    xrd_references = SubSection(
+        section_def=XRDReference,
+        repeats=True,
+        description='Reference files with optional per-file alpha values.',
+    )
     xrd_reference_cif_files = Quantity(
         type=str,
         shape=['*'],
         label='Reference files',
-        description='Optional reference files in .cif, .xy, .xyd, or .vasp format',
+        description=(
+            'Legacy reference file list. Prefer `xrd_references` for per-file '
+            'alpha values.'
+        ),
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
     )
@@ -336,7 +387,7 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
 
 
 class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
-    """Luminescence section with matrix CSV upload and 3D plot outputs."""
+    """Luminescence section with matrix spreadsheet upload and 3D plot outputs."""
 
     m_def = Section(
         a_eln={
@@ -344,6 +395,7 @@ class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
                 'order': [
                     'name',
                     'data_file',
+                    'sheet_names',
                     'measurement_start_time',
                     'measurement_start_label',
                     'time_seconds',
@@ -357,11 +409,20 @@ class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
     data_file = Quantity(
         type=str,
         description=(
-            'Luminescence matrix CSV. Row 1 contains timestamps in columns 2..N, '
+            'Luminescence matrix CSV/Excel. Row 1 contains timestamps in columns 2..N, '
             'rows 2..5 are ignored, data starts at row 6.'
         ),
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
+    )
+    sheet_names = Quantity(
+        type=str,
+        shape=['*'],
+        description=(
+            'Optional Excel sheet names to try (in order). If empty, '
+            'the first sheet is used.'
+        ),
+        a_eln={'component': 'StringEditQuantity'},
     )
     measurement_start_time = Quantity(
         type=Datetime,
@@ -615,11 +676,33 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
 
         # Process XRD file
         if self.xrd and self.xrd.xrd_file:
+            reference_files = []
+            reference_alphas = []
+            for reference in self.xrd.xrd_references or []:
+                if reference and reference.reference_file:
+                    reference_files.append(reference.reference_file)
+                    reference_alphas.append(reference.reference_alpha)
+
+            if not reference_files and self.xrd.xrd_reference_cif_files:
+                reference_files = list(self.xrd.xrd_reference_cif_files)
+                reference_alphas = [None] * len(reference_files)
+
+            if (
+                self.xrd.use_measurement_alpha_for_all_references
+                and reference_files
+            ):
+                propagated_alpha = CaPNormalizer._parse_xrd_alpha(self.xrd.xrd_alpha)
+                reference_alphas = [propagated_alpha] * len(reference_files)
+                for reference in self.xrd.xrd_references or []:
+                    if reference and reference.reference_file:
+                        reference.reference_alpha = propagated_alpha
+
             xrd_result = CaPNormalizer.process_xrd_file(
                 archive,
                 self.xrd.xrd_file,
                 logger,
-                reference_files=(self.xrd.xrd_reference_cif_files or None),
+                reference_files=(reference_files or None),
+                reference_alphas=(reference_alphas or None),
                 xrd_alpha=self.xrd.xrd_alpha,
             )
             self.xrd.two_theta = xrd_result['two_theta']
@@ -637,6 +720,7 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
                 archive,
                 self.luminescence.data_file,
                 logger,
+                sheet_names=self.luminescence.sheet_names,
             )
             self.luminescence.measurement_start_time = lum_result[
                 'measurement_start_time'

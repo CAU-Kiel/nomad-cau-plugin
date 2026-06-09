@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
-from io import StringIO
+from io import BytesIO, StringIO
 
 import numpy as np
 import pandas as pd
@@ -27,6 +28,50 @@ def _decode_csv_bytes(csv_bytes: bytes) -> str:
         return csv_bytes.decode('latin-1')
 
 
+def _normalize_sheet_names(sheet_names: list[str] | None) -> list[str]:
+    if not sheet_names:
+        return []
+    return [
+        name.strip()
+        for name in sheet_names
+        if isinstance(name, str) and name.strip()
+    ]
+
+
+def _read_luminescence_table(
+    file_path: str,
+    file_bytes: bytes,
+    sheet_names: list[str] | None = None,
+) -> pd.DataFrame:
+    suffix = os.path.splitext(file_path)[1].lower()
+    if suffix in {'.xls', '.xlsx', '.xlsm'}:
+        workbook = pd.read_excel(
+            BytesIO(file_bytes),
+            header=None,
+            dtype=str,
+            sheet_name=None,
+        )
+        if not workbook:
+            raise ValueError('Luminescence spreadsheet does not contain any sheets.')
+
+        requested = _normalize_sheet_names(sheet_names)
+        if requested:
+            for name in requested:
+                if name in workbook:
+                    return workbook[name]
+            available = ', '.join(workbook.keys())
+            requested_text = ', '.join(requested)
+            raise ValueError(
+                f'None of the requested sheet names were found. '
+                f'Requested: {requested_text}. Available: {available}.'
+            )
+
+        return next(iter(workbook.values()))
+
+    csv_text = _decode_csv_bytes(file_bytes)
+    return pd.read_csv(StringIO(csv_text), sep=';', header=None, dtype=str)
+
+
 def _parse_time_row(row: pd.Series) -> tuple[datetime, np.ndarray]:
     # Row 1, columns 2..N contain absolute timestamps.
     timestamps = pd.to_datetime(row.iloc[1:], errors='coerce')
@@ -42,8 +87,12 @@ def _parse_time_row(row: pd.Series) -> tuple[datetime, np.ndarray]:
     return measurement_start, time_seconds
 
 
-def luminescence_from_csv_bytes(csv_bytes: bytes) -> LuminescenceData:
-    """Parse luminescence matrix CSV into time, wavelength and intensity arrays.
+def luminescence_from_csv_bytes(
+    file_path: str,
+    file_bytes: bytes,
+    sheet_names: list[str] | None = None,
+) -> LuminescenceData:
+    """Parse luminescence matrix data into time, wavelength and intensity arrays.
 
     Expected format:
     - Row 1: column 1 is label, columns 2..N are absolute timestamps.
@@ -51,8 +100,7 @@ def luminescence_from_csv_bytes(csv_bytes: bytes) -> LuminescenceData:
     - From row 6: column 1 wavelength (nm), columns 2..N intensity values.
     """
 
-    csv_text = _decode_csv_bytes(csv_bytes)
-    raw = pd.read_csv(StringIO(csv_text), sep=';', header=None, dtype=str)
+    raw = _read_luminescence_table(file_path, file_bytes, sheet_names=sheet_names)
 
     if raw.shape[0] < MIN_REQUIRED_ROWS or raw.shape[1] < MIN_REQUIRED_COLUMNS:
         raise ValueError('Luminescence CSV does not contain required rows/columns.')

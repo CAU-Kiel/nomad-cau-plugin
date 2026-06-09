@@ -96,3 +96,41 @@ def test_xrd_plot_uses_angstrom_symbol_for_q_axis(monkeypatch):
     )
 
     assert result['figure'].figure['layout']['xaxis']['title']['text'] == 'q (Å⁻¹)'
+
+
+def test_xrd_normalizer_passes_per_reference_alphas(monkeypatch):
+    monkeypatch.setattr(
+        CaPNormalizer,
+        '_read_xyd_df',
+        staticmethod(
+            lambda *args, **kwargs: pd.DataFrame(
+                {
+                    'two_theta': [10.0, 20.0],
+                    'intensity': [1.0, 2.0],
+                }
+            )
+        ),
+    )
+
+    captured = {}
+
+    def _fake_collect_reference_dfs(*args, **kwargs):
+        captured['reference_alphas'] = kwargs.get('reference_alphas')
+        return []
+
+    monkeypatch.setattr(
+        CaPNormalizer,
+        '_collect_reference_dfs',
+        staticmethod(_fake_collect_reference_dfs),
+    )
+
+    CaPNormalizer.normalize_xrd_data(
+        archive=None,
+        xrd_file='test.xyd',
+        logger=type('Logger', (), {'error': lambda *args, **kwargs: None})(),
+        reference_files=['ref1.cif', 'ref2.cif'],
+        reference_alphas=[1.1, 1.2],
+        xrd_alpha=1.5406,
+    )
+
+    assert captured['reference_alphas'] == [1.1, 1.2]

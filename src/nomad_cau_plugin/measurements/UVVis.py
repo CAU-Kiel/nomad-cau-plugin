@@ -17,6 +17,7 @@ m_package = Package(name='UV-Vis archive schema')
 
 class UVVisMeasurement(PlotSection, ElnBaseSection, EntryData, ArchiveSection):
     m_def = Section(
+        label='UV-Vis Measurement',
         a_eln={
             'properties': {
                 'order': [

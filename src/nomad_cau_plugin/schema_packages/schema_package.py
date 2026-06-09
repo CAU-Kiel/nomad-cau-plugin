@@ -24,6 +24,7 @@ from nomad_cau_plugin.measurements.CaP_experiments import (
     Chemical,
     XRDMeasurement,
 )
+from nomad_cau_plugin.measurements.UVVis import UVVisMeasurement
 from nomad_cau_plugin.normalizers.Michaela_experiments_normalizer import (
     MichaelaNormalizer,
 )
@@ -41,7 +42,9 @@ class NewSchemaPackage(Schema):
     )
     message = Quantity(type=str)
 
-    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
+    def normalize(  # noqa: PLR0912, PLR0915
+        self, archive: 'EntryArchive', logger: 'BoundLogger'
+    ) -> None:
         super().normalize(archive, logger)
 
         logger.info('NewSchema.normalize', parameter=configuration.parameter)
@@ -423,7 +426,7 @@ class DLSMeasurement(ElnBaseSection, ArchiveSection):
 
 class Characterization(ArchiveSection):
     m_def = Section(
-        label='Characterization',
+        label='Measurements',
         a_eln={
             'properties': {
                 'order': [
@@ -455,9 +458,9 @@ class Characterization(ArchiveSection):
         description='X-ray diffraction measurements.',
     )
     uv_vis_measurements = SubSection(
-        section_def=XRDMeasurement,
+        section_def=UVVisMeasurement,
         repeats=True,
-        description='UV-VIS spectroscopy measurements (placeholder).',
+        description='UV-VIS spectroscopy measurements.',
     )
     dls_measurements = SubSection(
         section_def=DLSMeasurement,
@@ -512,17 +515,43 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
     refinement = SubSection(section_def=Refinement)
     characterization = SubSection(section_def=Characterization)
 
-    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
+    def normalize(  # noqa: PLR0912, PLR0915
+        self, archive: 'EntryArchive', logger: 'BoundLogger'
+    ) -> None:
         super().normalize(archive, logger)
 
         if self.characterization and self.characterization.xrd_measurements:
             for xrd in self.characterization.xrd_measurements:
                 if xrd and xrd.xrd_file:
+                    reference_files = []
+                    reference_alphas = []
+                    for reference in xrd.xrd_references or []:
+                        if reference and reference.reference_file:
+                            reference_files.append(reference.reference_file)
+                            reference_alphas.append(reference.reference_alpha)
+
+                    if not reference_files and xrd.xrd_reference_cif_files:
+                        reference_files = list(xrd.xrd_reference_cif_files)
+                        reference_alphas = [None] * len(reference_files)
+
+                    if (
+                        xrd.use_measurement_alpha_for_all_references
+                        and reference_files
+                    ):
+                        propagated_alpha = MichaelaNormalizer._parse_xrd_alpha(
+                            xrd.xrd_alpha
+                        )
+                        reference_alphas = [propagated_alpha] * len(reference_files)
+                        for reference in xrd.xrd_references or []:
+                            if reference and reference.reference_file:
+                                reference.reference_alpha = propagated_alpha
+
                     xrd_result = MichaelaNormalizer.process_xrd_file(
                         archive,
                         xrd.xrd_file,
                         logger,
-                        reference_files=xrd.xrd_reference_cif_files,
+                        reference_files=(reference_files or None),
+                        reference_alphas=(reference_alphas or None),
                         xrd_alpha=getattr(xrd, 'xrd_alpha', None),
                     )
                     xrd.two_theta = xrd_result['two_theta']

@@ -24,6 +24,17 @@ from .column_utils import (
 )
 
 
+def _optional_float(value):
+    if value is None:
+        return None
+    try:
+        if np.isnan(value):
+            return None
+    except TypeError:
+        return value
+    return value
+
+
 class CaPNormalizer:
     """
     Normalizer for MRO004 measurement data.
@@ -33,11 +44,15 @@ class CaPNormalizer:
     DEFAULT_XRD_ALPHA_ANGSTROM = 1.5406
 
     @staticmethod
-    def process_luminescence_data(archive, data_file, logger):
+    def process_luminescence_data(archive, data_file, logger, sheet_names=None):
         """Parse luminescence CSV and build a 3D time/wavelength/intensity plot."""
         try:
             with archive.m_context.raw_file(data_file, 'rb') as file:
-                parsed = luminescence_from_csv_bytes(file.read())
+                parsed = luminescence_from_csv_bytes(
+                    data_file,
+                    file.read(),
+                    sheet_names=sheet_names,
+                )
         except Exception as exc:  # pragma: no cover - guarded parsing
             logger.error(f'Failed to parse luminescence data file {data_file}: {exc}')
             raise
@@ -453,26 +468,38 @@ class CaPNormalizer:
             return None
 
     @staticmethod
-    def _collect_reference_dfs(
+    def _collect_reference_dfs(  # noqa: PLR0913
         archive,
         logger,
         reference_files: list[str],
         *,
         two_theta_range: tuple[float, float] | None = None,
         wavelength: float | None = None,
-    ) -> list[tuple[str, pd.DataFrame]]:
-        reference_dfs: list[tuple[str, pd.DataFrame]] = []
+        reference_alphas: list[float | None] | None = None,
+    ) -> list[tuple[str, pd.DataFrame, float]]:
+        reference_dfs: list[tuple[str, pd.DataFrame, float]] = []
 
-        for reference_file in reference_files:
+        for idx, reference_file in enumerate(reference_files):
+            reference_alpha_raw = None
+            if reference_alphas and idx < len(reference_alphas):
+                reference_alpha_raw = reference_alphas[idx]
+            reference_alpha_value = (
+                CaPNormalizer._parse_xrd_alpha(reference_alpha_raw)
+                if reference_alpha_raw is not None
+                else float(wavelength)
+            )
+
             pattern_df = CaPNormalizer._read_reference_pattern_df(
                 archive,
                 logger,
                 reference_file,
                 two_theta_range=two_theta_range,
-                wavelength=wavelength,
+                wavelength=reference_alpha_value,
             )
             if pattern_df is not None:
-                reference_dfs.append((reference_file, pattern_df))
+                reference_dfs.append(
+                    (reference_file, pattern_df, reference_alpha_value)
+                )
 
         return reference_dfs
 
@@ -551,6 +578,7 @@ class CaPNormalizer:
         xrd_file,
         logger,
         reference_files=None,
+        reference_alphas=None,
         reference_cif_files=None,
         xrd_alpha=None,
     ):
@@ -578,6 +606,7 @@ class CaPNormalizer:
         reference_files = CaPNormalizer._as_list(
             reference_files or reference_cif_files
         )
+        reference_alphas = CaPNormalizer._as_list(reference_alphas)
         xrd_alpha_value = CaPNormalizer._parse_xrd_alpha(xrd_alpha)
 
         try:
@@ -601,6 +630,7 @@ class CaPNormalizer:
             reference_files,
             two_theta_range=reference_two_theta_range,
             wavelength=xrd_alpha_value,
+            reference_alphas=reference_alphas,
         )
 
         fig = go.Figure()
@@ -639,7 +669,9 @@ class CaPNormalizer:
             '#17becf',
             '#bcbd22',
         ]
-        for idx, (cif_file, df_local) in enumerate(reference_cif_dfs):
+        for idx, (cif_file, df_local, reference_alpha_value) in enumerate(
+            reference_cif_dfs
+        ):
             if df_local.empty:
                 continue
 
@@ -655,7 +687,7 @@ class CaPNormalizer:
 
             q_values = CaPNormalizer._two_theta_to_q(
                 maxima_df['two_theta'].to_numpy(),
-                xrd_alpha_value,
+                reference_alpha_value,
             )
             x_sticks = []
             y_sticks = []
@@ -701,20 +733,21 @@ class CaPNormalizer:
         return {
             'two_theta': two_theta_out,
             'intensity': intensity_out,
-            'reference_files': [p for p, _ in reference_cif_dfs],
+            'reference_files': [p for p, _, _ in reference_cif_dfs],
+            'reference_alphas': [alpha for _, _, alpha in reference_cif_dfs],
             'reference_xyd_files': [
                 p
-                for p, _ in reference_cif_dfs
+                for p, _, _ in reference_cif_dfs
                 if os.path.splitext(p)[1].lower() in {'.xy', '.xyd'}
             ],
             'reference_cif_files': [
                 p
-                for p, _ in reference_cif_dfs
+                for p, _, _ in reference_cif_dfs
                 if os.path.splitext(p)[1].lower() == '.cif'
             ],
             'reference_vasp_files': [
                 p
-                for p, _ in reference_cif_dfs
+                for p, _, _ in reference_cif_dfs
                 if os.path.splitext(p)[1].lower() == '.vasp'
             ],
             'xrd_alpha': xrd_alpha_value,
@@ -815,21 +848,21 @@ class CaPNormalizer:
             'intensity_diameter': [],
             'intensity_differential': [],
             'intensity_cumulative': [],
-            'intensity_cumulant_diameter': np.nan,
-            'intensity_polydispersity_index': np.nan,
-            'intensity_d10': np.nan,
-            'intensity_d50': np.nan,
-            'intensity_d90': np.nan,
+            'intensity_cumulant_diameter': None,
+            'intensity_polydispersity_index': None,
+            'intensity_d10': None,
+            'intensity_d50': None,
+            'intensity_d90': None,
             'volume_diameter': [],
             'volume_differential': [],
             'volume_cumulative': [],
-            'volume_cumulant_diameter': np.nan,
-            'volume_d50': np.nan,
+            'volume_cumulant_diameter': None,
+            'volume_d50': None,
             'number_diameter': [],
             'number_differential': [],
             'number_cumulative': [],
-            'number_cumulant_diameter': np.nan,
-            'number_d50': np.nan,
+            'number_cumulant_diameter': None,
+            'number_d50': None,
             'figures': [],
         }
 
@@ -848,13 +881,15 @@ class CaPNormalizer:
                     intensity_dist.differential
                 )
                 result['intensity_cumulative'] = np.array(intensity_dist.cumulative)
-                result['intensity_cumulant_diameter'] = intensity_dist.cumulant_diameter
-                result['intensity_polydispersity_index'] = (
+                result['intensity_cumulant_diameter'] = _optional_float(
+                    intensity_dist.cumulant_diameter
+                )
+                result['intensity_polydispersity_index'] = _optional_float(
                     intensity_dist.polydispersity_index
                 )
-                result['intensity_d10'] = intensity_dist.d10
-                result['intensity_d50'] = intensity_dist.d50
-                result['intensity_d90'] = intensity_dist.d90
+                result['intensity_d10'] = _optional_float(intensity_dist.d10)
+                result['intensity_d50'] = _optional_float(intensity_dist.d50)
+                result['intensity_d90'] = _optional_float(intensity_dist.d90)
 
                 # Create intensity distribution figure
                 fig_intensity = go.Figure()
@@ -918,8 +953,10 @@ class CaPNormalizer:
                 result['volume_diameter'] = np.array(volume_dist.diameter)
                 result['volume_differential'] = np.array(volume_dist.differential)
                 result['volume_cumulative'] = np.array(volume_dist.cumulative)
-                result['volume_cumulant_diameter'] = volume_dist.cumulant_diameter
-                result['volume_d50'] = volume_dist.d50
+                result['volume_cumulant_diameter'] = _optional_float(
+                    volume_dist.cumulant_diameter
+                )
+                result['volume_d50'] = _optional_float(volume_dist.d50)
 
                 # Create volume distribution figure
                 fig_volume = go.Figure()
@@ -981,8 +1018,10 @@ class CaPNormalizer:
                 result['number_diameter'] = np.array(number_dist.diameter)
                 result['number_differential'] = np.array(number_dist.differential)
                 result['number_cumulative'] = np.array(number_dist.cumulative)
-                result['number_cumulant_diameter'] = number_dist.cumulant_diameter
-                result['number_d50'] = number_dist.d50
+                result['number_cumulant_diameter'] = _optional_float(
+                    number_dist.cumulant_diameter
+                )
+                result['number_d50'] = _optional_float(number_dist.d50)
 
                 # Create number distribution figure
                 fig_number = go.Figure()
