@@ -525,14 +525,23 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
                 if xrd and xrd.xrd_file:
                     reference_files = []
                     reference_alphas = []
-                    for reference in xrd.xrd_references or []:
-                        if reference and reference.reference_file:
-                            reference_files.append(reference.reference_file)
-                            reference_alphas.append(reference.reference_alpha)
+                    flat_reference_files = getattr(xrd, 'reference_files', None) or []
+                    flat_reference_alphas = getattr(xrd, 'reference_alphas', None) or []
 
-                    if not reference_files and xrd.xrd_reference_cif_files:
-                        reference_files = list(xrd.xrd_reference_cif_files)
-                        reference_alphas = [None] * len(reference_files)
+                    if flat_reference_files:
+                        reference_files = list(flat_reference_files)
+                        reference_alphas = list(
+                            flat_reference_alphas[: len(reference_files)]
+                        )
+                        if len(reference_alphas) < len(reference_files):
+                            reference_alphas.extend(
+                                [None] * (len(reference_files) - len(reference_alphas))
+                            )
+                    else:
+                        for reference in getattr(xrd, 'xrd_references', []) or []:
+                            if reference and reference.reference_file:
+                                reference_files.append(reference.reference_file)
+                                reference_alphas.append(reference.reference_alpha)
 
                     if (
                         xrd.use_measurement_alpha_for_all_references
@@ -542,7 +551,8 @@ class Michaela(PlotSection, EntryData, ArchiveSection):
                             xrd.xrd_alpha
                         )
                         reference_alphas = [propagated_alpha] * len(reference_files)
-                        for reference in xrd.xrd_references or []:
+
+                        for reference in getattr(xrd, 'xrd_references', []) or []:
                             if reference and reference.reference_file:
                                 reference.reference_alpha = propagated_alpha
 

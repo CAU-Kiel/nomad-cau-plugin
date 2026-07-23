@@ -49,99 +49,6 @@ from nomad_cau_plugin.normalizers.CaP_experiments_normalizer import CaPNormalize
 m_package = Package(name='Calcium Phosphate experiments archive schema')
 
 
-class Chemical(ElnBaseSection):
-    """
-    Class for chemicals from the PDF report.
-    """
-
-    m_def = Section(
-        a_eln={
-            'properties': {
-                'order': [
-                    'name',
-                    'chemical_name',
-                    'mol_weight',
-                    'actual_moles',
-                    'actual_amount',
-                    'concentration',
-                ]
-            }
-        },
-    )
-    chemical_name = Quantity(
-        type=str,
-        description='name of the chemical',
-        a_eln={'component': 'StringEditQuantity'},
-    )
-    mol_weight = Quantity(
-        type=np.float64,
-        description='molecular weight of the chemical',
-        a_eln={'component': 'NumberEditQuantity', 'defaultDisplayUnit': 'g/mol'},
-        unit='g/mol',
-    )
-    actual_moles = Quantity(
-        type=np.float64,
-        description='actual moles used (m = n * M)',
-        a_eln={'component': 'NumberEditQuantity', 'defaultDisplayUnit': 'mol'},
-        unit='mol',
-    )
-    actual_amount = Quantity(
-        type=np.float64,
-        description='actual amount used in grams (m = n * M)',
-        a_eln={'component': 'NumberEditQuantity', 'defaultDisplayUnit': 'g'},
-        unit='g',
-    )
-    concentration = Quantity(
-        type=str,
-        description='concentration (e.g., 100 w/w%)',
-        a_eln={'component': 'StringEditQuantity'},
-    )
-
-    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
-        """
-        The normalizer for the 'Chemical' class.
-        Implements automatic recalculation: m = n * M (mass = moles × molecular weight)
-
-        Args:
-            archive (EntryArchive): The archive containing the section that is being
-            normalized.
-            logger (BoundLogger): A structlog logger.
-        """
-        super().normalize(archive, logger)
-
-        # Set the name for GUI display if not already set
-        if not self.name and self.chemical_name:
-            self.name = self.chemical_name
-
-        # Auto-recalculate if both mol_weight and one of the other values are set
-        if hasattr(self, 'mol_weight') and self.mol_weight is not None:
-            mol_weight_value = (
-                self.mol_weight.magnitude
-                if hasattr(self.mol_weight, 'magnitude')
-                else self.mol_weight
-            )
-
-            if hasattr(self, 'actual_moles') and self.actual_moles is not None:
-                moles_value = (
-                    self.actual_moles.magnitude
-                    if hasattr(self.actual_moles, 'magnitude')
-                    else self.actual_moles
-                )
-                # Calculate mass: m = n * M
-                calculated_mass = moles_value * mol_weight_value
-                self.actual_amount = ureg.Quantity(calculated_mass, 'g')
-
-            elif hasattr(self, 'actual_amount') and self.actual_amount is not None:
-                mass_value = (
-                    self.actual_amount.magnitude
-                    if hasattr(self.actual_amount, 'magnitude')
-                    else self.actual_amount
-                )
-                # Calculate moles: n = m / M
-                calculated_moles = mass_value / mol_weight_value
-                self.actual_moles = ureg.Quantity(calculated_moles, 'mol')
-
-
 class Recipe(ProcessStep, ArchiveSection):
     """
     Class for recipe inside an excel file MRO005.
@@ -195,27 +102,117 @@ class Recipe(ProcessStep, ArchiveSection):
         super().normalize(archive, logger)
 
 
-class SetupImage(ElnBaseSection, ArchiveSection):
-    """Metadata for documenting experimental setup photos uploaded elsewhere."""
+class Chemical(ElnBaseSection):
+    """
+    Class for chemicals from the PDF report.
+    """
 
     m_def = Section(
         a_eln={
             'properties': {
                 'order': [
                     'name',
-                    'caption',
+                    'chemical_name',
+                    'mol_weight',
+                    'actual_moles',
+                    'actual_amount',
+                    'concentration',
                 ]
             }
         },
     )
-    caption = Quantity(
+    chemical_name = Quantity(
         type=str,
-        description=(
-            'Caption/notes for the setup photo '
-            '(upload/view the image via the entry description)'
-        ),
+        description='name of the chemical',
         a_eln={'component': 'StringEditQuantity'},
     )
+    mol_weight = Quantity(
+        type=np.float64,
+        description='molecular weight of the chemical',
+        a_eln={'component': 'NumberEditQuantity', 'defaultDisplayUnit': 'g/mol'},
+        unit='g/mol',
+    )
+    actual_moles = Quantity(
+        type=np.float64,
+        description='actual moles used (m = n * M)',
+        a_eln={'component': 'NumberEditQuantity', 'defaultDisplayUnit': 'mol'},
+        unit='mol',
+    )
+    actual_amount = Quantity(
+        type=np.float64,
+        description='actual amount used in grams (m = n * M)',
+        a_eln={'component': 'NumberEditQuantity', 'defaultDisplayUnit': 'g'},
+        unit='g',
+    )
+    concentration = Quantity(
+        type=str,
+        description='concentration (e.g., 100 w/w%)',
+        a_eln={'component': 'StringEditQuantity'},
+    )
+
+    def normalize(self, archive: 'EntryArchive', logger: 'BoundLogger') -> None:
+        """
+        The normalizer for the 'Chemical' class.
+        Implements automatic recalculation: m = n * M (mass = moles × molecular
+weight)
+
+        Args:
+            archive (EntryArchive): The archive containing the section that is being
+            normalized.
+            logger (BoundLogger): A structlog logger.
+        """
+        super().normalize(archive, logger)
+
+        if not self.name and self.chemical_name:
+            self.name = self.chemical_name
+
+        if hasattr(self, 'mol_weight') and self.mol_weight is not None:
+            mol_weight_value = (
+                self.mol_weight.magnitude
+                if hasattr(self.mol_weight, 'magnitude')
+                else self.mol_weight
+            )
+
+            if hasattr(self, 'actual_moles') and self.actual_moles is not None:
+                moles_value = (
+                    self.actual_moles.magnitude
+                    if hasattr(self.actual_moles, 'magnitude')
+                    else self.actual_moles
+                )
+                calculated_mass = moles_value * mol_weight_value
+                self.actual_amount = ureg.Quantity(calculated_mass, 'g')
+
+            elif hasattr(self, 'actual_amount') and self.actual_amount is not None:
+                mass_value = (
+                    self.actual_amount.magnitude
+                    if hasattr(self.actual_amount, 'magnitude')
+                    else self.actual_amount
+                )
+                calculated_moles = mass_value / mol_weight_value
+                self.actual_moles = ureg.Quantity(calculated_moles, 'mol')
+
+
+class SetupImage(ElnBaseSection, ArchiveSection):
+        """Metadata for documenting experimental setup photos uploaded elsewhere."""
+
+        m_def = Section(
+            a_eln={
+                'properties': {
+                    'order': [
+                        'name',
+                        'caption',
+                    ]
+                }
+            },
+        )
+        caption = Quantity(
+            type=str,
+            description=(
+                'Caption/notes for the setup photo '
+                '(upload/view the image via the entry description)'
+            ),
+            a_eln={'component': 'StringEditQuantity'},
+        )
 
 
 class ReactorMeasurement(ElnBaseSection, ArchiveSection):
@@ -276,40 +273,6 @@ class ReactorMeasurement(ElnBaseSection, ArchiveSection):
         unit='celsius',
     )
 
-class XRDReference(ElnBaseSection, ArchiveSection):
-    """Reference XRD input with per-reference wavelength."""
-
-    m_def = Section(
-        a_eln={
-            'properties': {
-                'order': [
-                    'reference_file',
-                    'reference_alpha',
-                ]
-            }
-        }
-    )
-
-    reference_file = Quantity(
-        type=str,
-        description='Reference file in .cif, .xy, .xyd, or .vasp format.',
-        a_browser={'adaptor': 'RawFileAdaptor'},
-        a_eln={'component': 'FileEditQuantity'},
-    )
-    reference_alpha = Quantity(
-        type=np.float64,
-        unit='angstrom',
-        description=(
-            'Optional wavelength (Angstrom) for this specific reference file. '
-            'Leave empty to use the measurement alpha.'
-        ),
-        a_eln={
-            'component': 'NumberEditQuantity',
-            'defaultDisplayUnit': 'angstrom',
-            'props': {'placeholder': '1.5406'},
-        },
-    )
-
 
 class XRDMeasurement(ElnBaseSection, ArchiveSection):
     """XRD upload section with optional reference files."""
@@ -322,7 +285,8 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
                     'xrd_file',
                     'xrd_alpha',
                     'use_measurement_alpha_for_all_references',
-                    'xrd_references',
+                    'reference_files',
+                    'reference_alphas',
                     'two_theta',
                     'intensity',
                 ]
@@ -358,21 +322,28 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
         ),
         a_eln={'component': 'BoolEditQuantity'},
     )
-    xrd_references = SubSection(
-        section_def=XRDReference,
-        repeats=True,
-        description='Reference files with optional per-file alpha values.',
-    )
-    xrd_reference_cif_files = Quantity(
+    reference_files = Quantity(
         type=str,
         shape=['*'],
-        label='Reference files',
         description=(
-            'Legacy reference file list. Prefer `xrd_references` for per-file '
-            'alpha values.'
+            'Reference files matched one-to-one with reference_alphas by index.'
         ),
         a_browser={'adaptor': 'RawFileAdaptor'},
         a_eln={'component': 'FileEditQuantity'},
+    )
+    reference_alphas = Quantity(
+        type=np.float64,
+        shape=['*'],
+        unit='angstrom',
+        description=(
+            'Reference wavelengths matched one-to-one with reference_files by index. '
+            'Leave an entry empty to use the measurement alpha.'
+        ),
+        a_eln={
+            'component': 'NumberEditQuantity',
+            'defaultDisplayUnit': 'angstrom',
+            'props': {'placeholder': '1.5406'},
+        },
     )
     two_theta = Quantity(
         type=np.float64,
@@ -384,8 +355,6 @@ class XRDMeasurement(ElnBaseSection, ArchiveSection):
         shape=['*'],
         unit='dimensionless',
     )
-
-
 class LuminescenceMeasurement(ElnBaseSection, ArchiveSection):
     """Luminescence section with matrix spreadsheet upload and 3D plot outputs."""
 
@@ -678,14 +647,17 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
         if self.xrd and self.xrd.xrd_file:
             reference_files = []
             reference_alphas = []
-            for reference in self.xrd.xrd_references or []:
-                if reference and reference.reference_file:
-                    reference_files.append(reference.reference_file)
-                    reference_alphas.append(reference.reference_alpha)
+            flat_reference_files = getattr(self.xrd, 'reference_files', None) or []
+            flat_reference_alphas = getattr(self.xrd, 'reference_alphas', None) or []
 
-            if not reference_files and self.xrd.xrd_reference_cif_files:
-                reference_files = list(self.xrd.xrd_reference_cif_files)
-                reference_alphas = [None] * len(reference_files)
+            if flat_reference_files:
+                reference_files = list(flat_reference_files)
+                reference_alphas = list(flat_reference_alphas[: len(reference_files)])
+
+                if len(reference_alphas) < len(reference_files):
+                    reference_alphas.extend(
+                        [None] * (len(reference_files) - len(reference_alphas))
+                    )
 
             if (
                 self.xrd.use_measurement_alpha_for_all_references
@@ -693,9 +665,6 @@ class CaP_experiments(PlotSection, EntryData, ArchiveSection):
             ):
                 propagated_alpha = CaPNormalizer._parse_xrd_alpha(self.xrd.xrd_alpha)
                 reference_alphas = [propagated_alpha] * len(reference_files)
-                for reference in self.xrd.xrd_references or []:
-                    if reference and reference.reference_file:
-                        reference.reference_alpha = propagated_alpha
 
             xrd_result = CaPNormalizer.process_xrd_file(
                 archive,
